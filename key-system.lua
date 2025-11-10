@@ -8,44 +8,37 @@ function KeySystem.new(shared)
     local self = setmetatable({}, KeySystem)
     self.Shared = shared
     self.LocalPlayer = shared.localPlayer
-    self.UserTokens = {}
     self.VerifiedKeys = {}
     self.APIEnabled = true
     return self
 end
 
-function KeySystem:GenerateToken()
-    local charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    local token = ""
-    for i = 1, 4 do
-        local rand = math.random(1, #charset)
-        token = token .. string.sub(charset, rand, rand)
+function KeySystem:GetUserTokenFromServer()
+    if not self.APIEnabled then
+        return nil, "API disabled"
     end
     
-    local userId = self.LocalPlayer.UserId
-    local playerName = self.LocalPlayer.Name
+    local success, result = pcall(function()
+        local url = self.APIBaseURL .. "/get_user_token"
+        local payload = {
+            user_id = tostring(self.LocalPlayer.UserId),
+            username = self.LocalPlayer.Name
+        }
+        
+        local response = game:GetService("HttpService"):PostAsync(
+            url,
+            game:GetService("HttpService"):JSONEncode(payload),
+            Enum.HttpContentType.ApplicationJson
+        )
+        
+        return game:GetService("HttpService"):JSONDecode(response)
+    end)
     
-    self.UserTokens[userId] = {
-        token = token,
-        playerName = playerName,
-        generatedAt = tick(),
-        userId = userId
-    }
-    
-    return token
-end
-
-function KeySystem:GetUserToken()
-    local userId = self.LocalPlayer.UserId
-    local storedToken = self.UserTokens[userId]
-    
-    if storedToken and tick() - storedToken.generatedAt < 21600 then
-        return storedToken.token
+    if success and result.success then
+        return result.token, result.message
     else
-        if storedToken then
-            self.UserTokens[userId] = nil
-        end
-        return self:GenerateToken()
+        local errorMsg = result and result.message or "Connection failed"
+        return nil, "API Error: " .. errorMsg
     end
 end
 
@@ -172,7 +165,7 @@ function KeySystem:CreateVerificationGUI()
     tokenValue.Size = UDim2.new(1, 0, 0, 25)
     tokenValue.Position = UDim2.new(0, 0, 0, 20)
     tokenValue.BackgroundTransparency = 1
-    tokenValue.Text = self:GetUserToken()
+    tokenValue.Text = "Loading..."
     tokenValue.TextColor3 = Color3.fromRGB(255, 255, 255)
     tokenValue.TextSize = 18
     tokenValue.Font = Enum.Font.GothamBold
@@ -228,7 +221,7 @@ function KeySystem:CreateVerificationGUI()
     statusLabel.Size = UDim2.new(1, -20, 0, 40)
     statusLabel.Position = UDim2.new(0, 10, 0, 230)
     statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "Ready for verification"
+    statusLabel.Text = "Getting token from server..."
     statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     statusLabel.TextSize = 12
     statusLabel.Font = Enum.Font.Gotham
@@ -246,11 +239,25 @@ function KeySystem:CreateVerificationGUI()
     instructions.TextWrapped = true
     instructions.Parent = mainFrame
     
-    copyButton.MouseButton1Click:Connect(function()
-        local fullURL = self.WebsiteURL .. self:GetUserToken()
-        self.Shared.setclipboard(fullURL)
-        statusLabel.Text = "Link copied! Visit website"
-        statusLabel.TextColor3 = Color3.fromRGB(0, 255, 136)
+    spawn(function()
+        local token, message = self:GetUserTokenFromServer()
+        if token then
+            tokenValue.Text = token
+            statusLabel.Text = "Ready for verification"
+            statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+            
+            copyButton.MouseButton1Click:Connect(function()
+                local fullURL = self.WebsiteURL .. token
+                self.Shared.setclipboard(fullURL)
+                statusLabel.Text = "Link copied! Visit website"
+                statusLabel.TextColor3 = Color3.fromRGB(0, 255, 136)
+            end)
+        else
+            tokenValue.Text = "ERROR"
+            statusLabel.Text = message
+            statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            copyButton.Visible = false
+        end
     end)
     
     verifyButton.MouseButton1Click:Connect(function()
