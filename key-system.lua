@@ -51,26 +51,51 @@ function KeySystem:ValidateKeyWithFlask(key)
             username = self.LocalPlayer.Name
         }
         
-        local response = game:GetService("HttpService"):PostAsync(
-            url,
-            game:GetService("HttpService"):JSONEncode(payload),
-            Enum.HttpContentType.ApplicationJson
-        )
+        local jsonPayload = game:GetService("HttpService"):JSONEncode(payload)
         
-        return game:GetService("HttpService"):JSONDecode(response)
+        -- Use RequestAsync instead of PostAsync for better error handling
+        local response = game:GetService("HttpService"):RequestAsync({
+            Url = url,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json",
+                ["User-Agent"] = "Roblox/MooHax"
+            },
+            Body = jsonPayload
+        })
+        
+        if response.Success then
+            return game:GetService("HttpService"):JSONDecode(response.Body)
+        else
+            error("HTTP " .. response.StatusCode .. ": " .. response.StatusMessage)
+        end
     end)
     
-    if success and result.valid then
-        local userId = self.LocalPlayer.UserId
-        self.VerifiedKeys[userId] = {
-            key = key,
-            verifiedAt = tick(),
-            username = self.LocalPlayer.Name
-        }
-        return true, result.message
+    if success then
+        if result.valid then
+            local userId = self.LocalPlayer.UserId
+            self.VerifiedKeys[userId] = {
+                key = key,
+                verifiedAt = tick(),
+                username = self.LocalPlayer.Name
+            }
+            return true, result.message
+        else
+            return false, result.message or "Key validation failed"
+        end
     else
-        local errorMsg = result and result.message or "Connection failed"
-        return false, "API Error: " .. errorMsg
+        local errorMsg = tostring(result)
+        if string.find(errorMsg, "403", 1, true) then
+            return false, "Access denied (403)"
+        elseif string.find(errorMsg, "404", 1, true) then
+            return false, "Endpoint not found (404)"
+        elseif string.find(errorMsg, "500", 1, true) then
+            return false, "Server error (500)"
+        elseif string.find(errorMsg, "timeout", 1, true) then
+            return false, "Request timeout"
+        else
+            return false, "Connection failed: " .. errorMsg
+        end
     end
 end
 
@@ -235,7 +260,19 @@ function KeySystem:CreateVerificationGUI()
         end
         statusLabel.Text = "Verifying key..."
         statusLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
+        
+        -- Disable button during verification to prevent spam
+        verifyButton.Text = "VERIFYING..."
+        verifyButton.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+        verifyButton.Active = false
+        
         local success, message = self:ValidateKeyWithFlask(key)
+        
+        -- Re-enable button
+        verifyButton.Text = "VERIFY & EXECUTE"
+        verifyButton.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+        verifyButton.Active = true
+        
         if success then
             statusLabel.Text = message
             statusLabel.TextColor3 = Color3.fromRGB(0, 255, 136)
