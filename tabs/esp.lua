@@ -4,16 +4,18 @@ return function(Window, Shared)
     local espRefreshConnection = nil
 
     local function createESP(targetPlayer)
-        if not targetPlayer or targetPlayer == Shared.localPlayer then return end
+        if not targetPlayer then return end
         if Shared.espFolders[targetPlayer] then
             pcall(function() Shared.espFolders[targetPlayer]:Destroy() end)
             Shared.espFolders[targetPlayer] = nil
         end
+        
         local function setupESP(character)
             if not character then return end
             wait(0.5)
             local humanoid = character:FindFirstChildOfClass("Humanoid")
             if not humanoid then return end
+            
             local highlight = Instance.new("Highlight")
             highlight.Name = "PlayerESP"
             highlight.FillColor = Shared.MooSettings.ESPFillColor or Color3.fromRGB(255,0,0)
@@ -23,6 +25,7 @@ return function(Window, Shared)
             highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
             highlight.Parent = character
             Shared.espFolders[targetPlayer] = highlight
+            
             humanoid.Died:Connect(function()
                 if Shared.espFolders[targetPlayer] then
                     pcall(function() Shared.espFolders[targetPlayer]:Destroy() end)
@@ -30,6 +33,7 @@ return function(Window, Shared)
                 end
             end)
         end
+        
         if targetPlayer.Character then
             setupESP(targetPlayer.Character)
         end
@@ -45,10 +49,9 @@ return function(Window, Shared)
             end
         end
         Shared.espFolders = {}
+        
         for _, player in ipairs(Shared.Players:GetPlayers()) do
-            if player ~= Shared.localPlayer then
-                createESP(player)
-            end
+            createESP(player)
         end
     end
 
@@ -61,15 +64,8 @@ return function(Window, Shared)
             if not Shared.MooSettings.ESPEnabled then return end
             
             for _, player in ipairs(Shared.Players:GetPlayers()) do
-                if player ~= Shared.localPlayer and not Shared.espFolders[player] then
+                if not Shared.espFolders[player] then
                     createESP(player)
-                end
-            end
-            
-            for player, highlight in pairs(Shared.espFolders) do
-                if not player or not player.Parent then
-                    pcall(function() highlight:Destroy() end)
-                    Shared.espFolders[player] = nil
                 end
             end
         end)
@@ -89,7 +85,7 @@ return function(Window, Shared)
 
     Shared.Players.PlayerAdded:Connect(function(player)
         wait(1)
-        if Shared.MooSettings.ESPEnabled and player ~= Shared.localPlayer then
+        if Shared.MooSettings.ESPEnabled then
             createESP(player)
         end
     end)
