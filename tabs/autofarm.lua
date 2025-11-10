@@ -98,61 +98,29 @@ return function(Window, Shared)
         local rootPart = character:FindFirstChild("HumanoidRootPart")
         if not rootPart then return nil end
         local cashPiles = findCashPiles()
-        
-        local hugeCash = {}
-        local mediumCash = {}
-        local smallCash = {}
-        local otherCash = {}
+        local closestPile = nil
+        local closestDistance = Shared.MooSettings.FarmRange
         
         for _, pile in pairs(cashPiles) do
-            local name = pile.Name:lower()
-            if string.find(name, "huge") then
-                table.insert(hugeCash, pile)
-            elseif string.find(name, "medium") then
-                table.insert(mediumCash, pile)
-            elseif string.find(name, "small") then
-                table.insert(smallCash, pile)
-            else
-                table.insert(otherCash, pile)
-            end
-        end
-        
-        local function findClosestInCategory(category)
-            local closestPile = nil
-            local closestDistance = Shared.MooSettings.FarmRange
-            
-            for _, pile in pairs(category) do
-                local distance
-                if pile:IsA("Model") then
-                    local primaryPart = pile.PrimaryPart or pile:FindFirstChildWhichIsA("BasePart")
-                    if primaryPart then
-                        distance = (rootPart.Position - primaryPart.Position).Magnitude
-                    else
-                        distance = math.huge
-                    end
+            local distance
+            if pile:IsA("Model") then
+                local primaryPart = pile.PrimaryPart or pile:FindFirstChildWhichIsA("BasePart")
+                if primaryPart then
+                    distance = (rootPart.Position - primaryPart.Position).Magnitude
                 else
-                    distance = (rootPart.Position - pile.Position).Magnitude
+                    distance = math.huge
                 end
-                
-                if distance < closestDistance then
-                    closestDistance = distance
-                    closestPile = pile
-                end
+            else
+                distance = (rootPart.Position - pile.Position).Magnitude
             end
             
-            return closestPile
+            if distance < closestDistance then
+                closestDistance = distance
+                closestPile = pile
+            end
         end
         
-        local closestHuge = findClosestInCategory(hugeCash)
-        if closestHuge then return closestHuge end
-        
-        local closestMedium = findClosestInCategory(mediumCash)
-        if closestMedium then return closestMedium end
-        
-        local closestSmall = findClosestInCategory(smallCash)
-        if closestSmall then return closestSmall end
-        
-        return findClosestInCategory(otherCash)
+        return closestPile
     end
 
     local function farmCashPile(cashPile)
@@ -340,7 +308,7 @@ return function(Window, Shared)
 
     tab:CreateParagraph({
         Title = "Auto Farm Info",
-        Content = "Prioritizes Huge Cash > Medium Cash > Small Cash > Other Cash"
+        Content = "Teleports to nearest cash pile with 'Cash' in name, collects, returns to platform"
     })
 
     tab:CreateSlider({
