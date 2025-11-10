@@ -88,7 +88,7 @@ return function(Window, Shared)
             screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
         end
         for _, player in ipairs(Shared.Players:GetPlayers()) do
-            if player ~= Shared.localPlayer and player.Character then
+            if player.Character then
                 local targetPart = player.Character:FindFirstChild("Head") or player.Character:FindFirstChild("HumanoidRootPart")
                 local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
                 local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
@@ -291,12 +291,21 @@ return function(Window, Shared)
                 local targetPart = targetPlayer.Character:FindFirstChild("Head") or targetPlayer.Character:FindFirstChild("HumanoidRootPart")
                 local camera = Shared.Workspace.CurrentCamera
                 local localCharacter = Shared.localPlayer.Character
-                if targetPart and camera and localCharacter then
+                
+                if targetPart and camera and localCharacter and localCharacter:FindFirstChild("HumanoidRootPart") then
                     local humanoid = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
                     local rootPart = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    local localRootPart = localCharacter.HumanoidRootPart
+                    
                     if humanoid and humanoid.Health > 0 and rootPart then
                         local targetPosition = targetPart.Position
+                        
                         camera.CFrame = CFrame.new(camera.CFrame.Position, targetPosition)
+                        
+                        localRootPart.CFrame = CFrame.new(
+                            localRootPart.Position,
+                            Vector3.new(targetPosition.X, localRootPart.Position.Y, targetPosition.Z)
+                        )
                     else
                         Shared.MooAimlock.Enabled = false
                         Shared.MooAimlock.CurrentTarget = nil
