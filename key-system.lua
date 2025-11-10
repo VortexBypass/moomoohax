@@ -13,33 +13,8 @@ function KeySystem.new(shared)
     return self
 end
 
-function KeySystem:GetUserTokenFromServer()
-    if not self.APIEnabled then
-        return nil, "API disabled"
-    end
-    
-    local success, result = pcall(function()
-        local url = self.APIBaseURL .. "/get_user_token"
-        local payload = {
-            user_id = tostring(self.LocalPlayer.UserId),
-            username = self.LocalPlayer.Name
-        }
-        
-        local response = game:GetService("HttpService"):PostAsync(
-            url,
-            game:GetService("HttpService"):JSONEncode(payload),
-            Enum.HttpContentType.ApplicationJson
-        )
-        
-        return game:GetService("HttpService"):JSONDecode(response)
-    end)
-    
-    if success and result.success then
-        return result.token, result.message
-    else
-        local errorMsg = result and result.message or "Connection failed"
-        return nil, "API Error: " .. errorMsg
-    end
+function KeySystem:GetUserToken()
+    return self.LocalPlayer.Name
 end
 
 function KeySystem:ValidateMOOKeyFormat(key)
@@ -73,7 +48,6 @@ function KeySystem:ValidateKeyWithFlask(key)
         local url = self.APIBaseURL .. "/validate_key"
         local payload = {
             key = key,
-            user_id = tostring(self.LocalPlayer.UserId),
             username = self.LocalPlayer.Name
         }
         
@@ -165,9 +139,9 @@ function KeySystem:CreateVerificationGUI()
     tokenValue.Size = UDim2.new(1, 0, 0, 25)
     tokenValue.Position = UDim2.new(0, 0, 0, 20)
     tokenValue.BackgroundTransparency = 1
-    tokenValue.Text = "Loading..."
+    tokenValue.Text = self:GetUserToken()
     tokenValue.TextColor3 = Color3.fromRGB(255, 255, 255)
-    tokenValue.TextSize = 18
+    tokenValue.TextSize = 14
     tokenValue.Font = Enum.Font.GothamBold
     tokenValue.Parent = tokenSection
     
@@ -221,7 +195,7 @@ function KeySystem:CreateVerificationGUI()
     statusLabel.Size = UDim2.new(1, -20, 0, 40)
     statusLabel.Position = UDim2.new(0, 10, 0, 230)
     statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "Getting token from server..."
+    statusLabel.Text = "Ready for verification"
     statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     statusLabel.TextSize = 12
     statusLabel.Font = Enum.Font.Gotham
@@ -232,32 +206,18 @@ function KeySystem:CreateVerificationGUI()
     instructions.Size = UDim2.new(1, -20, 0, 40)
     instructions.Position = UDim2.new(0, 10, 0, 275)
     instructions.BackgroundTransparency = 1
-    instructions.Text = "Token valid for 6 hours"
+    instructions.Text = "Token: Your Username"
     instructions.TextColor3 = Color3.fromRGB(150, 150, 200)
     instructions.TextSize = 11
     instructions.Font = Enum.Font.Gotham
     instructions.TextWrapped = true
     instructions.Parent = mainFrame
     
-    spawn(function()
-        local token, message = self:GetUserTokenFromServer()
-        if token then
-            tokenValue.Text = token
-            statusLabel.Text = "Ready for verification"
-            statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-            
-            copyButton.MouseButton1Click:Connect(function()
-                local fullURL = self.WebsiteURL .. token
-                self.Shared.setclipboard(fullURL)
-                statusLabel.Text = "Link copied! Visit website"
-                statusLabel.TextColor3 = Color3.fromRGB(0, 255, 136)
-            end)
-        else
-            tokenValue.Text = "ERROR"
-            statusLabel.Text = message
-            statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-            copyButton.Visible = false
-        end
+    copyButton.MouseButton1Click:Connect(function()
+        local fullURL = self.WebsiteURL .. self:GetUserToken()
+        self.Shared.setclipboard(fullURL)
+        statusLabel.Text = "Link copied! Visit website"
+        statusLabel.TextColor3 = Color3.fromRGB(0, 255, 136)
     end)
     
     verifyButton.MouseButton1Click:Connect(function()
