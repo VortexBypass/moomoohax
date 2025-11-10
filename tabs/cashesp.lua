@@ -19,13 +19,16 @@ return function(Window, Shared)
             Shared.cashEspConnection = nil
         end
         
-        for _, highlight in pairs(Shared.cashEspFolders) do
-            pcall(function() highlight:Destroy() end)
+        for cashPile, highlight in pairs(Shared.cashEspFolders) do
+            if highlight then
+                pcall(function() highlight:Destroy() end)
+            end
         end
         Shared.cashEspFolders = {}
         
         local function addCashESP(cashPile)
             if not cashPile:IsA("BasePart") and not cashPile:IsA("Model") then return end
+            if Shared.cashEspFolders[cashPile] then return end
             
             local highlight = Instance.new("Highlight")
             highlight.Name = "CashESP"
@@ -53,14 +56,14 @@ return function(Window, Shared)
         Shared.cashEspConnection = Shared.RunService.Heartbeat:Connect(function()
             if not Shared.MooSettings.CashESPEnabled then return end
             
+            scanForCashPiles()
+            
             for cashPile, highlight in pairs(Shared.cashEspFolders) do
                 if not cashPile or not cashPile.Parent or cashPile.Parent == nil then
                     pcall(function() highlight:Destroy() end)
                     Shared.cashEspFolders[cashPile] = nil
                 end
             end
-            
-            scanForCashPiles()
         end)
         
         scanForCashPiles()
@@ -73,8 +76,10 @@ return function(Window, Shared)
             Shared.cashEspConnection = nil
         end
         
-        for _, highlight in pairs(Shared.cashEspFolders) do
-            pcall(function() highlight:Destroy() end)
+        for cashPile, highlight in pairs(Shared.cashEspFolders) do
+            if highlight then
+                pcall(function() highlight:Destroy() end)
+            end
         end
         Shared.cashEspFolders = {}
         Shared.createNotification("Cash ESP disabled", Color3.new(1,0,0))
