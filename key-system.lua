@@ -254,8 +254,9 @@ function KeySystem:CreateVerificationGUI()
             text = "MOO" .. text
         end
         
-        if #text > 18 then
-            text = text:sub(1, 18)
+        -- FIX: Changed from 18 to 19 to allow full key length
+        if #text > 19 then
+            text = text:sub(1, 19)
         end
         
         local parts = {}
@@ -287,7 +288,11 @@ function KeySystem:CreateVerificationGUI()
                 newText = newText .. "-" .. parts[i]
             end
             
-            if keyInput.Text ~= newText then
+            -- FIX: Ensure we don't lose the last character by checking if we have exactly 4 parts
+            -- A complete MOO key should have 5 parts: MOO + 4 groups of 3
+            if #parts == 5 and #newText == 19 then
+                -- This is a complete key, don't modify it
+            elseif keyInput.Text ~= newText then
                 keyInput.Text = newText
             end
         end
