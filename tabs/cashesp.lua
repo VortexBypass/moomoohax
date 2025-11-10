@@ -44,9 +44,7 @@ return function(Window, Shared)
                 if obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("Model") then
                     local name = obj.Name:lower()
                     if string.find(name, "cash") then
-                        if not Shared.cashEspFolders[obj] then
-                            addCashESP(obj)
-                        end
+                        addCashESP(obj)
                     end
                 end
             end
@@ -54,7 +52,6 @@ return function(Window, Shared)
         
         Shared.cashEspConnection = Shared.RunService.Heartbeat:Connect(function()
             if not Shared.MooSettings.CashESPEnabled then return end
-            scanForCashPiles()
             
             for cashPile, highlight in pairs(Shared.cashEspFolders) do
                 if not cashPile or not cashPile.Parent or cashPile.Parent == nil then
@@ -62,6 +59,8 @@ return function(Window, Shared)
                     Shared.cashEspFolders[cashPile] = nil
                 end
             end
+            
+            scanForCashPiles()
         end)
         
         scanForCashPiles()
