@@ -5,6 +5,7 @@ return function(Window, Shared)
 
     local function createESP(targetPlayer)
         if not targetPlayer then return end
+        if targetPlayer == Shared.localPlayer then return end
         if Shared.espFolders[targetPlayer] then
             pcall(function() Shared.espFolders[targetPlayer]:Destroy() end)
             Shared.espFolders[targetPlayer] = nil
@@ -82,6 +83,13 @@ return function(Window, Shared)
         initializeESP()
         Shared.createNotification("ESP refreshed", Color3.new(0,1,1))
     end
+
+    Shared.UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.ButtonX then
+            refreshESP()
+        end
+    end)
 
     Shared.Players.PlayerAdded:Connect(function(player)
         wait(1)
