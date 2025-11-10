@@ -28,7 +28,7 @@ function KeySystem:GenerateToken()
     self.UserTokens[userId] = {
         token = token,
         playerName = playerName,
-        generatedAt = os.time(),
+        generatedAt = tick(),
         userId = userId
     }
     
@@ -39,9 +39,12 @@ function KeySystem:GetUserToken()
     local userId = self.LocalPlayer.UserId
     local storedToken = self.UserTokens[userId]
     
-    if storedToken and os.time() - storedToken.generatedAt < 21600 then
+    if storedToken and tick() - storedToken.generatedAt < 21600 then
         return storedToken.token
     else
+        if storedToken then
+            self.UserTokens[userId] = nil
+        end
         return self:GenerateToken()
     end
 end
@@ -60,7 +63,7 @@ function KeySystem:IsKeyVerified(key)
     local userId = self.LocalPlayer.UserId
     local verifiedData = self.VerifiedKeys[userId]
     
-    if verifiedData and os.time() - verifiedData.verifiedAt < 21600 then
+    if verifiedData and tick() - verifiedData.verifiedAt < 21600 then
         return verifiedData.key == key
     else
         self.VerifiedKeys[userId] = nil
@@ -94,7 +97,7 @@ function KeySystem:ValidateKeyWithFlask(key)
         local userId = self.LocalPlayer.UserId
         self.VerifiedKeys[userId] = {
             key = key,
-            verifiedAt = os.time(),
+            verifiedAt = tick(),
             username = self.LocalPlayer.Name
         }
         return true, result.message
@@ -320,7 +323,7 @@ end
 
 function KeySystem:Initialize()
     local userId = self.LocalPlayer.UserId
-    if self.VerifiedKeys[userId] and os.time() - self.VerifiedKeys[userId].verifiedAt < 21600 then
+    if self.VerifiedKeys[userId] and tick() - self.VerifiedKeys[userId].verifiedAt < 21600 then
         self:LoadMainScript()
         return true
     else
