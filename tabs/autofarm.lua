@@ -308,7 +308,7 @@ return function(Window, Shared)
 
     tab:CreateParagraph({
         Title = "Auto Farm Info",
-        Content = "Teleports to nearest cash pile with 'Cash' in name, collects, returns to platform"
+        Content = "Teleports to any object with 'Cash' in its name"
     })
 
     tab:CreateSlider({
