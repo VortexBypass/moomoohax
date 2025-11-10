@@ -4,6 +4,7 @@ return function(Window, Shared)
     local isFarming = false
     local originalPosition = nil
     local originalTransparency = {}
+    local invisibilityEnabled = false
 
     local function createAirPlatform()
         if Shared.airPlatform then
@@ -24,30 +25,61 @@ return function(Window, Shared)
 
     local function makePlayerInvisible(character)
         if not character then return end
+        invisibilityEnabled = true
         originalTransparency = {}
+        
+        -- Store and set transparency for all parts
         for _, part in pairs(character:GetDescendants()) do
             if part:IsA("BasePart") then
                 originalTransparency[part] = part.Transparency
                 part.Transparency = 1
             end
         end
+        
+        -- Also handle humanoid appearance
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            -- Hide name and health bar
+            humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+        end
     end
 
     local function restorePlayerVisibility(character)
         if not character then return end
+        invisibilityEnabled = false
+        
+        -- Restore transparency for all parts
         for part, transparency in pairs(originalTransparency) do
             if part and part.Parent then
                 part.Transparency = transparency
             end
         end
         originalTransparency = {}
+        
+        -- Restore humanoid appearance
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
+        end
     end
+
+    -- Function to reapply invisibility when character respawns
+    local function onCharacterAdded(character)
+        if invisibilityEnabled and Shared.MooSettings.AutoFarmEnabled then
+            wait(1) -- Wait for character to fully load
+            makePlayerInvisible(character)
+        end
+    end
+
+    -- Connect character added event
+    Shared.localPlayer.CharacterAdded:Connect(onCharacterAdded)
 
     local function safeTeleportToPlatform(character)
         if not character or not character:FindFirstChild("HumanoidRootPart") then return false end
         
         local rootPart = character.HumanoidRootPart
         
+        -- Enable noclip temporarily for safe teleport
         local savedNoclipState = Shared.MooSettings.NoclipEnabled
         if not savedNoclipState then
             Shared.MooSettings.NoclipEnabled = true
@@ -72,10 +104,12 @@ return function(Window, Shared)
             end)
         end
         
+        -- Teleport to platform
         rootPart.CFrame = CFrame.new(0, 110, 0)
         wait(0.1)
-        rootPart.CFrame = CFrame.new(0, 110, 0)
+        rootPart.CFrame = CFrame.new(0, 110, 0) -- Double teleport for safety
         
+        -- Restore noclip state
         if not savedNoclipState then
             wait(0.5)
             if Shared.noclipConnection then
@@ -142,55 +176,6 @@ return function(Window, Shared)
         return closestPile
     end
 
-    local function farmCashPile(cashPile)
-        local character = Shared.localPlayer.Character
-        if not character then return false end
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        local rootPart = character:FindFirstChild("HumanoidRootPart")
-        if not humanoid or not rootPart then return false end
-        
-        local targetPos
-        if cashPile:IsA("Model") then
-            local primaryPart = cashPile.PrimaryPart or cashPile:FindFirstChildWhichIsA("BasePart")
-            if primaryPart then
-                targetPos = primaryPart.Position
-            else
-                return false
-            end
-        else
-            targetPos = cashPile.Position
-        end
-        
-        rootPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
-        
-        wait(0.5)
-        
-        if cashPile:IsA("Model") then
-            for _, part in pairs(cashPile:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    pcall(function() 
-                        firetouchinterest(rootPart, part, 0) 
-                        wait()
-                        firetouchinterest(rootPart, part, 1) 
-                    end)
-                end
-            end
-        else
-            pcall(function() 
-                firetouchinterest(rootPart, cashPile, 0) 
-                wait()
-                firetouchinterest(rootPart, cashPile, 1) 
-            end)
-        end
-        
-        wait(0.9)
-        
-        safeTeleportToPlatform(character)
-        
-        Shared.createNotification("Collected cash", Color3.new(0,1,0))
-        return true
-    end
-
     local function startAutoFarm()
         if Shared.farmingConnection then
             Shared.farmingConnection:Disconnect()
@@ -200,7 +185,7 @@ return function(Window, Shared)
         local character = Shared.localPlayer.Character
         if character and character:FindFirstChild("HumanoidRootPart") then
             originalPosition = character.HumanoidRootPart.Position
-            makePlayerInvisible(character)
+            makePlayerInvisible(character) -- Apply invisibility immediately
         end
         
         createAirPlatform()
@@ -217,6 +202,11 @@ return function(Window, Shared)
                         Shared.farmingConnection = Shared.RunService.Heartbeat:Connect(function() end)
                     end
                     return 
+                end
+                
+                -- Ensure invisibility is applied
+                if not invisibilityEnabled then
+                    makePlayerInvisible(character)
                 end
                 
                 safeTeleportToPlatform(character)
