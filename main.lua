@@ -144,7 +144,23 @@ local RayfieldWindow = Rayfield:CreateWindow({
 
 local function LoadTab(tabName, icon)
     local success, result = pcall(function()
-        local url = "https://raw.githubusercontent.com/yourusername/moomoohax/main/tabs/" .. tabName .. ".lua"
+        local url = ""
+        if tabName == "aimlock" then
+            url = "https://raw.githubusercontent.com/VortexBypass/moomoohax/refs/heads/main/tabs/aimlock.lua"
+        elseif tabName == "esp" then
+            url = "https://raw.githubusercontent.com/VortexBypass/moomoohax/refs/heads/main/tabs/esp.lua"
+        elseif tabName == "cashesp" then
+            url = "https://raw.githubusercontent.com/VortexBypass/moomoohax/refs/heads/main/tabs/cashesp.lua"
+        elseif tabName == "autofarm" then
+            url = "https://raw.githubusercontent.com/VortexBypass/moomoohax/refs/heads/main/tabs/autofarm.lua"
+        elseif tabName == "player" then
+            url = "https://raw.githubusercontent.com/VortexBypass/moomoohax/refs/heads/main/tabs/player.lua"
+        elseif tabName == "settings" then
+            url = "https://raw.githubusercontent.com/VortexBypass/moomoohax/refs/heads/main/tabs/settings.lua"
+        elseif tabName == "info" then
+            url = "https://raw.githubusercontent.com/VortexBypass/moomoohax/refs/heads/main/tabs/info.lua"
+        end
+        
         local script = loadstring(game:HttpGet(url))()
         return script(RayfieldWindow, {
             MooAimlock = getgenv().MooAimlock,
