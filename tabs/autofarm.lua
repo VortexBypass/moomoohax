@@ -72,11 +72,9 @@ return function(Window, Shared)
             end)
         end
         
-        rootPart.CFrame = CFrame.new(0, 105, 0)
+        rootPart.CFrame = CFrame.new(0, 110, 0)
         wait(0.1)
-        rootPart.CFrame = CFrame.new(0, 105, 0)
-        wait(0.1)
-        rootPart.CFrame = CFrame.new(0, 102, 0)
+        rootPart.CFrame = CFrame.new(0, 110, 0)
         
         if not savedNoclipState then
             wait(0.5)
@@ -185,7 +183,7 @@ return function(Window, Shared)
             end)
         end
         
-        wait(0.5)
+        wait(0.9)
         
         safeTeleportToPlatform(character)
         
@@ -270,7 +268,7 @@ return function(Window, Shared)
                         end)
                     end
                     
-                    wait(0.5)
+                    wait(0.9)
                     
                     safeTeleportToPlatform(character)
                     
