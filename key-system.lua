@@ -1,10 +1,8 @@
 local KeySystem = {}
 KeySystem.__index = KeySystem
-
 KeySystem.WebsiteURL = "https://carminestoat.onpella.app/?token="
 KeySystem.APIBaseURL = "https://carminestoat.onpella.app"
 KeySystem.RequiredKeyLength = 19
-
 function KeySystem.new(shared)
     local self = setmetatable({}, KeySystem)
     self.Shared = shared
@@ -14,7 +12,6 @@ function KeySystem.new(shared)
     self.APIEnabled = true
     return self
 end
-
 function KeySystem:GenerateToken()
     local charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     local token = ""
@@ -30,12 +27,10 @@ function KeySystem:GenerateToken()
     self.UserTokens[userId] = token
     return token
 end
-
 function KeySystem:GetUserToken()
     local userId = self.LocalPlayer.UserId
     return self.UserTokens[userId] or self:GenerateToken()
 end
-
 function KeySystem:ValidateMOOKeyFormat(key)
     if type(key) ~= "string" then return false end
     if #key ~= self.RequiredKeyLength then return false end
@@ -45,12 +40,10 @@ function KeySystem:ValidateMOOKeyFormat(key)
     local pattern = "^MOO%-[A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]%-[A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]%-[A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]$"
     return string.match(key:upper(), pattern) ~= nil
 end
-
 function KeySystem:IsKeyVerified(key)
     local userId = self.LocalPlayer.UserId
     return self.VerifiedKeys[userId] == key
 end
-
 function KeySystem:ValidateKeyWithFlask(key)
     if not self.APIEnabled then
         return false, "API disabled"
@@ -77,7 +70,6 @@ function KeySystem:ValidateKeyWithFlask(key)
         return false, "API Error: " .. errorMsg
     end
 end
-
 function KeySystem:CreateVerificationGUI()
     local gui = Instance.new("ScreenGui")
     gui.Name = "MooHaxKeySystem"
@@ -265,7 +257,6 @@ function KeySystem:CreateVerificationGUI()
     end)
     return gui
 end
-
 function KeySystem:LoadMainScript()
     local gui = self.LocalPlayer.PlayerGui:FindFirstChild("MooHaxKeySystem")
     if gui then
@@ -281,7 +272,6 @@ function KeySystem:LoadMainScript()
         warn("Failed to load main script: " .. err)
     end
 end
-
 function KeySystem:Initialize()
     local userId = self.LocalPlayer.UserId
     if self.VerifiedKeys[userId] then
@@ -292,5 +282,4 @@ function KeySystem:Initialize()
         return false
     end
 end
-
 return KeySystem
