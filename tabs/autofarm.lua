@@ -2,6 +2,7 @@ return function(Window, Shared)
     local tab = Window:CreateTab("AutoFarm", "truck")
     
     local isFarming = false
+    local originalPosition = nil
 
     local function createAirPlatform()
         if Shared.airPlatform then
@@ -18,6 +19,64 @@ return function(Window, Shared)
         Shared.airPlatform.BrickColor = BrickColor.new("Bright blue")
         Shared.airPlatform.Material = Enum.Material.Neon
         Shared.airPlatform.Parent = Shared.Workspace
+    end
+
+    local function safeTeleportToPlatform(character)
+        if not character or not character:FindFirstChild("HumanoidRootPart") then return false end
+        
+        local rootPart = character.HumanoidRootPart
+        
+        local savedNoclipState = Shared.MooSettings.NoclipEnabled
+        if not savedNoclipState then
+            Shared.MooSettings.NoclipEnabled = true
+            if Shared.noclipConnection then
+                Shared.noclipConnection:Disconnect()
+            end
+            Shared.originalCollision = {}
+            for _, part in pairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    Shared.originalCollision[part] = part.CanCollide
+                    part.CanCollide = false
+                end
+            end
+            Shared.noclipConnection = Shared.RunService.Stepped:Connect(function()
+                if Shared.localPlayer.Character then
+                    for _, part in pairs(Shared.localPlayer.Character:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                        end
+                    end
+                end
+            end)
+        end
+        
+        rootPart.CFrame = CFrame.new(0, 110, 0)
+        
+        wait(0.2)
+        
+        rootPart.CFrame = CFrame.new(0, 110, 0)
+        
+        wait(0.5)
+        
+        if not savedNoclipState then
+            if Shared.noclipConnection then
+                Shared.noclipConnection:Disconnect()
+                Shared.noclipConnection = nil
+            end
+            spawn(function()
+                wait(0.5)
+                if Shared.localPlayer.Character then
+                    for part, originalState in pairs(Shared.originalCollision) do
+                        if part and part.Parent then
+                            part.CanCollide = originalState
+                        end
+                    end
+                end
+            end)
+            Shared.MooSettings.NoclipEnabled = false
+        end
+        
+        return true
     end
 
     local function findCashPiles()
@@ -139,7 +198,7 @@ return function(Window, Shared)
         
         wait(0.5)
         
-        rootPart.CFrame = CFrame.new(0, 101, 0)
+        safeTeleportToPlatform(character)
         
         Shared.createNotification("Collected cash", Color3.new(0,1,0))
         return true
@@ -149,6 +208,11 @@ return function(Window, Shared)
         if Shared.farmingConnection then
             Shared.farmingConnection:Disconnect()
             Shared.farmingConnection = nil
+        end
+        
+        local character = Shared.localPlayer.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            originalPosition = character.HumanoidRootPart.Position
         end
         
         createAirPlatform()
@@ -167,7 +231,7 @@ return function(Window, Shared)
                     return 
                 end
                 
-                character.HumanoidRootPart.CFrame = CFrame.new(0, 101, 0)
+                safeTeleportToPlatform(character)
                 wait(5)
                 
                 if not Shared.MooSettings.AutoFarmEnabled then 
@@ -218,7 +282,7 @@ return function(Window, Shared)
                     
                     wait(0.5)
                     
-                    character.HumanoidRootPart.CFrame = CFrame.new(0, 101, 0)
+                    safeTeleportToPlatform(character)
                     
                     Shared.createNotification("AutoFarm: Collected cash", Color3.new(0,1,0))
                 else
@@ -245,6 +309,15 @@ return function(Window, Shared)
         if Shared.airPlatform then
             Shared.airPlatform:Destroy()
             Shared.airPlatform = nil
+        end
+        
+        if originalPosition then
+            local character = Shared.localPlayer.Character
+            if character and character:FindFirstChild("HumanoidRootPart") then
+                character.HumanoidRootPart.CFrame = CFrame.new(originalPosition)
+                Shared.createNotification("Returned to original position", Color3.new(0,1,1))
+            end
+            originalPosition = nil
         end
         
         Shared.createNotification("AutoFarm stopped", Color3.new(1,0,0))
