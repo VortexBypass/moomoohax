@@ -248,24 +248,48 @@ function KeySystem:CreateVerificationGUI()
     end)
     
     keyInput:GetPropertyChangedSignal("Text"):Connect(function()
-        local text = keyInput.Text:upper():gsub("[^A-Z0-9]", "")
+        local text = keyInput.Text:upper():gsub("[^A-Z0-9%-]", "")
+        
         if string.sub(text, 1, 3) ~= "MOO" then
             text = "MOO" .. text
         end
-        if #text > 15 then
-            text = text:sub(1, 15)
+        
+        if #text > 18 then
+            text = text:sub(1, 18)
         end
-        if #text > 3 then
-            text = text:sub(1, 3) .. "-" .. text:sub(4)
+        
+        local parts = {}
+        local currentPart = ""
+        
+        for i = 1, #text do
+            local char = text:sub(i, i)
+            if char == "-" then
+                if #currentPart > 0 then
+                    table.insert(parts, currentPart)
+                    currentPart = ""
+                end
+            else
+                currentPart = currentPart .. char
+                if #currentPart == 3 then
+                    table.insert(parts, currentPart)
+                    currentPart = ""
+                end
+            end
         end
-        if #text > 7 then
-            text = text:sub(1, 7) .. "-" .. text:sub(8)
+        
+        if #currentPart > 0 then
+            table.insert(parts, currentPart)
         end
-        if #text > 11 then
-            text = text:sub(1, 11) .. "-" .. text:sub(12)
-        end
-        if keyInput.Text ~= text then
-            keyInput.Text = text
+        
+        if #parts > 0 then
+            local newText = parts[1]
+            for i = 2, #parts do
+                newText = newText .. "-" .. parts[i]
+            end
+            
+            if keyInput.Text ~= newText then
+                keyInput.Text = newText
+            end
         end
     end)
     
