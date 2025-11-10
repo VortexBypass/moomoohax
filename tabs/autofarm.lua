@@ -1,0 +1,299 @@
+return function(Window, Shared)
+    local tab = Window:CreateTab("AutoFarm", "truck")
+    
+    local isFarming = false
+
+    local function createAirPlatform()
+        if Shared.airPlatform then
+            Shared.airPlatform:Destroy()
+        end
+        
+        Shared.airPlatform = Instance.new("Part")
+        Shared.airPlatform.Name = "MooHaxAirPlatform"
+        Shared.airPlatform.Size = Vector3.new(50, 5, 50)
+        Shared.airPlatform.Position = Vector3.new(0, 99, 0)
+        Shared.airPlatform.Anchored = true
+        Shared.airPlatform.CanCollide = true
+        Shared.airPlatform.Transparency = 0.5
+        Shared.airPlatform.BrickColor = BrickColor.new("Bright blue")
+        Shared.airPlatform.Material = Enum.Material.Neon
+        Shared.airPlatform.Parent = Shared.Workspace
+    end
+
+    local function findCashPiles()
+        local cashPiles = {}
+        for _, obj in pairs(Shared.Workspace:GetDescendants()) do
+            if obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("Model") then
+                local name = obj.Name:lower()
+                if string.find(name, "cash") then
+                    table.insert(cashPiles, obj)
+                end
+            end
+        end
+        return cashPiles
+    end
+
+    local function getClosestCashPile()
+        local character = Shared.localPlayer.Character
+        if not character then return nil end
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if not rootPart then return nil end
+        local cashPiles = findCashPiles()
+        
+        local hugeCash = {}
+        local mediumCash = {}
+        local smallCash = {}
+        local otherCash = {}
+        
+        for _, pile in pairs(cashPiles) do
+            local name = pile.Name:lower()
+            if string.find(name, "huge") then
+                table.insert(hugeCash, pile)
+            elseif string.find(name, "medium") then
+                table.insert(mediumCash, pile)
+            elseif string.find(name, "small") then
+                table.insert(smallCash, pile)
+            else
+                table.insert(otherCash, pile)
+            end
+        end
+        
+        local function findClosestInCategory(category)
+            local closestPile = nil
+            local closestDistance = Shared.MooSettings.FarmRange
+            
+            for _, pile in pairs(category) do
+                local distance
+                if pile:IsA("Model") then
+                    local primaryPart = pile.PrimaryPart or pile:FindFirstChildWhichIsA("BasePart")
+                    if primaryPart then
+                        distance = (rootPart.Position - primaryPart.Position).Magnitude
+                    else
+                        distance = math.huge
+                    end
+                else
+                    distance = (rootPart.Position - pile.Position).Magnitude
+                end
+                
+                if distance < closestDistance then
+                    closestDistance = distance
+                    closestPile = pile
+                end
+            end
+            
+            return closestPile
+        end
+        
+        local closestHuge = findClosestInCategory(hugeCash)
+        if closestHuge then return closestHuge end
+        
+        local closestMedium = findClosestInCategory(mediumCash)
+        if closestMedium then return closestMedium end
+        
+        local closestSmall = findClosestInCategory(smallCash)
+        if closestSmall then return closestSmall end
+        
+        return findClosestInCategory(otherCash)
+    end
+
+    local function farmCashPile(cashPile)
+        local character = Shared.localPlayer.Character
+        if not character then return false end
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if not humanoid or not rootPart then return false end
+        
+        local targetPos
+        if cashPile:IsA("Model") then
+            local primaryPart = cashPile.PrimaryPart or cashPile:FindFirstChildWhichIsA("BasePart")
+            if primaryPart then
+                targetPos = primaryPart.Position
+            else
+                return false
+            end
+        else
+            targetPos = cashPile.Position
+        end
+        
+        rootPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
+        
+        wait(0.5)
+        
+        if cashPile:IsA("Model") then
+            for _, part in pairs(cashPile:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    pcall(function() 
+                        firetouchinterest(rootPart, part, 0) 
+                        wait()
+                        firetouchinterest(rootPart, part, 1) 
+                    end)
+                end
+            end
+        else
+            pcall(function() 
+                firetouchinterest(rootPart, cashPile, 0) 
+                wait()
+                firetouchinterest(rootPart, cashPile, 1) 
+            end)
+        end
+        
+        wait(0.5)
+        
+        rootPart.CFrame = CFrame.new(0, 101, 0)
+        
+        Shared.createNotification("Collected cash", Color3.new(0,1,0))
+        return true
+    end
+
+    local function startAutoFarm()
+        if Shared.farmingConnection then
+            Shared.farmingConnection:Disconnect()
+            Shared.farmingConnection = nil
+        end
+        
+        createAirPlatform()
+        
+        Shared.farmingConnection = Shared.RunService.Heartbeat:Connect(function()
+            if not Shared.MooSettings.AutoFarmEnabled then return end
+            
+            Shared.farmingConnection:Disconnect()
+            
+            spawn(function()
+                local character = Shared.localPlayer.Character
+                if not character or not character:FindFirstChild("HumanoidRootPart") then 
+                    if Shared.MooSettings.AutoFarmEnabled then
+                        Shared.farmingConnection = Shared.RunService.Heartbeat:Connect(function() end)
+                    end
+                    return 
+                end
+                
+                character.HumanoidRootPart.CFrame = CFrame.new(0, 101, 0)
+                wait(5)
+                
+                if not Shared.MooSettings.AutoFarmEnabled then 
+                    if Shared.MooSettings.AutoFarmEnabled then
+                        Shared.farmingConnection = Shared.RunService.Heartbeat:Connect(function() end)
+                    end
+                    return 
+                end
+                
+                local closestPile = getClosestCashPile()
+                if closestPile then
+                    local targetPos
+                    if closestPile:IsA("Model") then
+                        local primaryPart = closestPile.PrimaryPart or closestPile:FindFirstChildWhichIsA("BasePart")
+                        if primaryPart then
+                            targetPos = primaryPart.Position
+                        else
+                            if Shared.MooSettings.AutoFarmEnabled then
+                                Shared.farmingConnection = Shared.RunService.Heartbeat:Connect(function() end)
+                            end
+                            return
+                        end
+                    else
+                        targetPos = closestPile.Position
+                    end
+                    
+                    character.HumanoidRootPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
+                    
+                    wait(0.5)
+                    
+                    if closestPile:IsA("Model") then
+                        for _, part in pairs(closestPile:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                pcall(function() 
+                                    firetouchinterest(character.HumanoidRootPart, part, 0) 
+                                    wait()
+                                    firetouchinterest(character.HumanoidRootPart, part, 1) 
+                                end)
+                            end
+                        end
+                    else
+                        pcall(function() 
+                            firetouchinterest(character.HumanoidRootPart, closestPile, 0) 
+                            wait()
+                            firetouchinterest(character.HumanoidRootPart, closestPile, 1) 
+                        end)
+                    end
+                    
+                    wait(0.5)
+                    
+                    character.HumanoidRootPart.CFrame = CFrame.new(0, 101, 0)
+                    
+                    Shared.createNotification("AutoFarm: Collected cash", Color3.new(0,1,0))
+                else
+                    Shared.createNotification("No cash piles found in range", Color3.new(1,1,0))
+                end
+                
+                wait(5)
+                
+                if Shared.MooSettings.AutoFarmEnabled then
+                    Shared.farmingConnection = Shared.RunService.Heartbeat:Connect(function() end)
+                end
+            end)
+        end)
+        
+        Shared.createNotification("AutoFarm started", Color3.new(0,1,0))
+    end
+
+    local function stopAutoFarm()
+        if Shared.farmingConnection then
+            Shared.farmingConnection:Disconnect()
+            Shared.farmingConnection = nil
+        end
+        
+        if Shared.airPlatform then
+            Shared.airPlatform:Destroy()
+            Shared.airPlatform = nil
+        end
+        
+        Shared.createNotification("AutoFarm stopped", Color3.new(1,0,0))
+    end
+
+    tab:CreateSection("Auto Farm")
+    tab:CreateToggle({
+        Name = "Auto Farm Cash",
+        CurrentValue = Shared.MooSettings.AutoFarmEnabled,
+        Flag = "AutoFarmToggle",
+        Callback = function(val)
+            Shared.MooSettings.AutoFarmEnabled = val
+            if val then
+                startAutoFarm()
+            else
+                stopAutoFarm()
+            end
+        end
+    })
+
+    tab:CreateParagraph({
+        Title = "Auto Farm Info",
+        Content = "Prioritizes Huge Cash > Medium Cash > Small Cash > Other Cash"
+    })
+
+    tab:CreateSlider({
+        Name = "Farm Range",
+        Range = {10,200},
+        Increment = 1,
+        Suffix = "studs",
+        CurrentValue = Shared.MooSettings.FarmRange,
+        Flag = "FarmRange",
+        Callback = function(val)
+            Shared.MooSettings.FarmRange = val
+            Shared.createNotification("Farm range "..tostring(val), Color3.new(0,1,1))
+        end
+    })
+
+    tab:CreateButton({
+        Name = "Collect Nearest Now",
+        Callback = function()
+            local pile = getClosestCashPile()
+            if pile then
+                farmCashPile(pile)
+            else
+                Shared.createNotification("No cash pile nearby", Color3.new(1,1,0))
+            end
+        end
+    })
+
+    return tab
+end
