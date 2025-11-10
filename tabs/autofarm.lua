@@ -3,6 +3,7 @@ return function(Window, Shared)
     
     local isFarming = false
     local originalPosition = nil
+    local originalTransparency = {}
 
     local function createAirPlatform()
         if Shared.airPlatform then
@@ -19,6 +20,27 @@ return function(Window, Shared)
         Shared.airPlatform.BrickColor = BrickColor.new("Bright blue")
         Shared.airPlatform.Material = Enum.Material.Neon
         Shared.airPlatform.Parent = Shared.Workspace
+    end
+
+    local function makePlayerInvisible(character)
+        if not character then return end
+        originalTransparency = {}
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                originalTransparency[part] = part.Transparency
+                part.Transparency = 1
+            end
+        end
+    end
+
+    local function restorePlayerVisibility(character)
+        if not character then return end
+        for part, transparency in pairs(originalTransparency) do
+            if part and part.Parent then
+                part.Transparency = transparency
+            end
+        end
+        originalTransparency = {}
     end
 
     local function safeTeleportToPlatform(character)
@@ -50,15 +72,14 @@ return function(Window, Shared)
             end)
         end
         
-        rootPart.CFrame = CFrame.new(0, 110, 0)
-        
-        wait(0.2)
-        
-        rootPart.CFrame = CFrame.new(0, 110, 0)
-        
-        wait(0.5)
+        rootPart.CFrame = CFrame.new(0, 105, 0)
+        wait(0.1)
+        rootPart.CFrame = CFrame.new(0, 105, 0)
+        wait(0.1)
+        rootPart.CFrame = CFrame.new(0, 102, 0)
         
         if not savedNoclipState then
+            wait(0.5)
             if Shared.noclipConnection then
                 Shared.noclipConnection:Disconnect()
                 Shared.noclipConnection = nil
@@ -181,6 +202,7 @@ return function(Window, Shared)
         local character = Shared.localPlayer.Character
         if character and character:FindFirstChild("HumanoidRootPart") then
             originalPosition = character.HumanoidRootPart.Position
+            makePlayerInvisible(character)
         end
         
         createAirPlatform()
@@ -277,6 +299,11 @@ return function(Window, Shared)
         if Shared.airPlatform then
             Shared.airPlatform:Destroy()
             Shared.airPlatform = nil
+        end
+        
+        local character = Shared.localPlayer.Character
+        if character then
+            restorePlayerVisibility(character)
         end
         
         if originalPosition then
