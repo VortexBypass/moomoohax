@@ -4,12 +4,14 @@ KeySystem.WebsiteURL = "https://mooverify.vercel.app/generate?token="
 KeySystem.APIBaseURL = "https://mooverify.vercel.app"
 KeySystem.RequiredKeyLength = 19
 
+-- Persistent storage using Roblox DataStore
 function KeySystem.new(shared)
     local self = setmetatable({}, KeySystem)
     self.Shared = shared
     self.LocalPlayer = shared.localPlayer
-    self.VerifiedKeys = {}
     self.APIEnabled = true
+    self.DataStoreService = game:GetService("DataStoreService")
+    self.VerifiedKeysStore = self.DataStoreService:GetDataStore("MooVerifyKeys")
     return self
 end
 
@@ -27,16 +29,51 @@ function KeySystem:ValidateMOOKeyFormat(key)
     return string.match(key:upper(), pattern) ~= nil
 end
 
-function KeySystem:IsKeyVerified(key)
-    local userId = self.LocalPlayer.UserId
-    local verifiedData = self.VerifiedKeys[userId]
+function KeySystem:LoadVerifiedKey()
+    local success, result = pcall(function()
+        return self.VerifiedKeysStore:GetAsync(self.LocalPlayer.UserId)
+    end)
     
-    if verifiedData and tick() - verifiedData.verifiedAt < 21600 then
-        return verifiedData.key == key
-    else
-        self.VerifiedKeys[userId] = nil
-        return false
+    if success and result then
+        -- Check if key is still valid (less than 6 hours old)
+        if tick() - result.verifiedAt < 21600 then
+            return result.key, result.verifiedAt
+        else
+            -- Key expired, remove it
+            self:RemoveVerifiedKey()
+            return nil
+        end
     end
+    return nil
+end
+
+function KeySystem:SaveVerifiedKey(key)
+    local success, result = pcall(function()
+        local data = {
+            key = key,
+            verifiedAt = tick(),
+            username = self.LocalPlayer.Name
+        }
+        self.VerifiedKeysStore:SetAsync(self.LocalPlayer.UserId, data)
+        return true
+    end)
+    return success
+end
+
+function KeySystem:RemoveVerifiedKey()
+    local success, result = pcall(function()
+        self.VerifiedKeysStore:RemoveAsync(self.LocalPlayer.UserId)
+        return true
+    end)
+    return success
+end
+
+function KeySystem:IsKeyVerified(key)
+    local storedKey, verifiedAt = self:LoadVerifiedKey()
+    if storedKey and storedKey == key then
+        return true
+    end
+    return false
 end
 
 function KeySystem:ValidateKeyWithFlask(key)
@@ -72,13 +109,12 @@ function KeySystem:ValidateKeyWithFlask(key)
     
     if success then
         if result.valid then
-            local userId = self.LocalPlayer.UserId
-            self.VerifiedKeys[userId] = {
-                key = key,
-                verifiedAt = tick(),
-                username = self.LocalPlayer.Name
-            }
-            return true, result.message
+            -- Save the verified key persistently
+            if self:SaveVerifiedKey(key) then
+                return true, result.message
+            else
+                return false, "Failed to save key locally"
+            end
         else
             return false, result.message or "Key validation failed"
         end
@@ -237,6 +273,14 @@ function KeySystem:CreateVerificationGUI()
     instructions.TextWrapped = true
     instructions.Parent = mainFrame
     
+    -- Load stored key if available
+    local storedKey = self:LoadVerifiedKey()
+    if storedKey then
+        keyInput.Text = storedKey
+        statusLabel.Text = "Found stored key! Click verify to use it."
+        statusLabel.TextColor3 = Color3.fromRGB(56, 189, 248)
+    end
+    
     copyButton.MouseButton1Click:Connect(function()
         local fullURL = self.WebsiteURL .. self:GetUserToken()
         if self.Shared and self.Shared.setclipboard then
@@ -285,6 +329,8 @@ function KeySystem:CreateVerificationGUI()
         else
             statusLabel.Text = "❌ " .. message
             statusLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
+            -- If validation failed, remove any stored key
+            self:RemoveVerifiedKey()
         end
     end)
     
@@ -390,12 +436,12 @@ function KeySystem:LoadMainScript()
 end
 
 function KeySystem:Initialize()
-    local userId = self.LocalPlayer.UserId
-    if self.VerifiedKeys[userId] and tick() - self.VerifiedKeys[userId].verifiedAt < 21600 then
+    -- Check if we have a stored and valid key
+    local storedKey = self:LoadVerifiedKey()
+    if storedKey then
         self:LoadMainScript()
         return true
     else
-        self.VerifiedKeys[userId] = nil
         self:CreateVerificationGUI()
         return false
     end
