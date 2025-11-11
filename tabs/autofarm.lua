@@ -3,7 +3,7 @@ return function(Window, Shared)
     local originalPosition = nil
     local originalTransparency = {}
     local invisibilityEnabled = false
-    local farmingThread = nil
+    local runningThread = nil
 
     local function createAirPlatform()
         if Shared.airPlatform then
@@ -88,7 +88,6 @@ return function(Window, Shared)
                 end
             end)
         end
-
         local platPos = Shared.airPlatform.Position
         local platHalfY = Shared.airPlatform.Size.Y / 2
         local rootHalfY = (rootPart.Size and rootPart.Size.Y / 2) or 1
@@ -102,7 +101,6 @@ return function(Window, Shared)
             wait(0.05)
             timeout = timeout + 0.05
         end
-
         if not savedNoclipState then
             wait(0.2)
             if Shared.noclipConnection then
@@ -121,16 +119,15 @@ return function(Window, Shared)
             end)
             Shared.MooSettings.NoclipEnabled = false
         end
-
         return true
     end
 
     local function findCashPiles()
         local cashPiles = {}
         for _, obj in pairs(Shared.Workspace:GetDescendants()) do
-            if obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("Model") then
-                local name = tostring(obj.Name):lower()
-                if string.find(name, "cash") then
+            if obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Model") then
+                local ok, name = pcall(function() return tostring(obj.Name):lower() end)
+                if ok and name and string.find(name, "cash") then
                     table.insert(cashPiles, obj)
                 end
             end
@@ -166,99 +163,147 @@ return function(Window, Shared)
         return closestPile
     end
 
-    local function collectPile(closestPile, character)
-        if not closestPile or not character or not character:FindFirstChild("HumanoidRootPart") then return false end
+    local function collectPile(pile, character)
+        if not pile or not character or not character:FindFirstChild("HumanoidRootPart") then return false end
         local root = character.HumanoidRootPart
         local targetPos
-        if closestPile:IsA("Model") then
-            local primaryPart = closestPile.PrimaryPart or closestPile:FindFirstChildWhichIsA("BasePart")
+        if pile:IsA("Model") then
+            local primaryPart = pile.PrimaryPart or pile:FindFirstChildWhichIsA("BasePart")
+            if not primaryPart then
+                for _, p in pairs(pile:GetDescendants()) do
+                    if p:IsA("BasePart") then
+                        primaryPart = p
+                        break
+                    end
+                end
+            end
             if not primaryPart then return false end
             targetPos = primaryPart.Position
         else
-            targetPos = closestPile.Position
+            targetPos = pile.Position
         end
-        root.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
-        wait(0.15)
-        if closestPile:IsA("Model") then
-            for _, part in pairs(closestPile:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    pcall(function()
-                        firetouchinterest(root, part, 0)
-                        wait()
-                        firetouchinterest(root, part, 1)
-                    end)
+        local attempts = 0
+        local maxAttempts = 6
+        while attempts < maxAttempts and pile.Parent and Shared.MooSettings.AutoFarmEnabled do
+            root.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
+            wait(0.12)
+            if pile:IsA("Model") then
+                for _, part in pairs(pile:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        pcall(function()
+                            firetouchinterest(root, part, 0)
+                            wait()
+                            firetouchinterest(root, part, 1)
+                        end)
+                    end
                 end
+            else
+                pcall(function()
+                    firetouchinterest(root, pile, 0)
+                    wait()
+                    firetouchinterest(root, pile, 1)
+                end)
             end
-        else
-            pcall(function()
-                firetouchinterest(root, closestPile, 0)
-                wait()
-                firetouchinterest(root, closestPile, 1)
-            end)
+            attempts = attempts + 1
+            wait(0.25)
         end
-        wait(0.6)
-        return true
+        if not pile.Parent then
+            return true
+        end
+        if pile:IsA("Model") then
+            local primaryPart = pile.PrimaryPart or pile:FindFirstChildWhichIsA("BasePart")
+            if not primaryPart then
+                local anyPart = nil
+                for _, p in pairs(pile:GetDescendants()) do
+                    if p:IsA("BasePart") then
+                        anyPart = p
+                        break
+                    end
+                end
+                if anyPart and anyPart.Parent == nil then
+                    return true
+                end
+            elseif primaryPart.Parent == nil then
+                return true
+            end
+        end
+        return false
     end
 
     local function startAutoFarm()
-        if farmingThread then
-            farmingThread = nil
-        end
-        local character = Shared.localPlayer.Character
-        if character and character:FindFirstChild("HumanoidRootPart") then
-            originalPosition = character.HumanoidRootPart.Position
-            makePlayerInvisible(character)
+        if runningThread then return end
+        runningThread = true
+        local char = Shared.localPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            originalPosition = char.HumanoidRootPart.Position
+            makePlayerInvisible(char)
         end
         createAirPlatform()
         Shared.createNotification("AutoFarm started", Color3.new(0,1,0))
-        farmingThread = spawn(function()
-            while Shared.MooSettings.AutoFarmEnabled do
+        spawn(function()
+            while runningThread and Shared.MooSettings.AutoFarmEnabled do
                 local character = Shared.localPlayer.Character
                 if not character or not character:FindFirstChild("HumanoidRootPart") then
-                    wait(0.5)
-                    continue
+                    wait(0.6)
+                    goto continue_loop
                 end
                 if not invisibilityEnabled then
                     makePlayerInvisible(character)
                 end
                 safeTeleportToPlatform(character)
                 local waitBeforeCollect = Shared.MooSettings.CollectDelay or 5
-                wait(waitBeforeCollect)
+                for i = waitBeforeCollect, 1, -1 do
+                    if not Shared.MooSettings.AutoFarmEnabled then break end
+                    Shared.createNotification("Collecting in "..tostring(i).."s", Color3.new(0,1,1))
+                    wait(1)
+                end
                 if not Shared.MooSettings.AutoFarmEnabled then break end
                 local closestPile = getClosestCashPile()
-                if closestPile then
-                    local ok = collectPile(closestPile, character)
-                    if ok then
-                        safeTeleportToPlatform(character)
-                        Shared.createNotification("AutoFarm: Collected cash", Color3.new(0,1,0))
-                    else
-                        safeTeleportToPlatform(character)
-                        Shared.createNotification("AutoFarm: Collect failed", Color3.new(1,0.6,0))
-                    end
-                else
+                if not closestPile then
                     Shared.createNotification("No cash piles found in range", Color3.new(1,1,0))
                     safeTeleportToPlatform(character)
+                    local loopDelay = Shared.MooSettings.LoopDelay or 5
+                    for t = loopDelay, 1, -1 do
+                        if not Shared.MooSettings.AutoFarmEnabled then break end
+                        if t % 1 == 0 then
+                            Shared.createNotification("Next attempt in "..tostring(t).."s", Color3.new(0.7,0.7,1))
+                        end
+                        wait(1)
+                    end
+                    goto continue_loop
                 end
-                local loopDelay = Shared.MooSettings.LoopDelay or 5
-                local elapsed = 0
-                while elapsed < loopDelay and Shared.MooSettings.AutoFarmEnabled do
-                    wait(0.25)
-                    elapsed = elapsed + 0.25
+                local ok = collectPile(closestPile, character)
+                if ok then
+                    Shared.createNotification("AutoFarm: Collected cash", Color3.new(0,1,0))
+                else
+                    Shared.createNotification("AutoFarm: Collect failed, will retry", Color3.new(1,0.6,0))
                 end
+                safeTeleportToPlatform(character)
+                local loopDelay2 = Shared.MooSettings.LoopDelay or 5
+                for t = loopDelay2, 1, -1 do
+                    if not Shared.MooSettings.AutoFarmEnabled then break end
+                    if t % 1 == 0 then
+                        Shared.createNotification("Next run in "..tostring(t).."s", Color3.new(0.7,0.7,1))
+                    end
+                    wait(1)
+                end
+                ::continue_loop::
+                wait(0.1)
             end
+            runningThread = nil
             if not Shared.MooSettings.AutoFarmEnabled then
                 if Shared.airPlatform then
                     pcall(function() Shared.airPlatform:Destroy() end)
                     Shared.airPlatform = nil
                 end
-                local char = Shared.localPlayer.Character
-                if char then
-                    restorePlayerVisibility(char)
+                local c = Shared.localPlayer.Character
+                if c then
+                    restorePlayerVisibility(c)
                 end
                 if originalPosition then
-                    local c = Shared.localPlayer.Character
-                    if c and c:FindFirstChild("HumanoidRootPart") then
-                        c.HumanoidRootPart.CFrame = CFrame.new(originalPosition)
+                    local c2 = Shared.localPlayer.Character
+                    if c2 and c2:FindFirstChild("HumanoidRootPart") then
+                        c2.HumanoidRootPart.CFrame = CFrame.new(originalPosition)
                         Shared.createNotification("Returned to original position", Color3.new(0,1,1))
                     end
                     originalPosition = nil
@@ -270,6 +315,7 @@ return function(Window, Shared)
 
     local function stopAutoFarm()
         Shared.MooSettings.AutoFarmEnabled = false
+        runningThread = nil
     end
 
     tab:CreateSection("Auto Farm")
@@ -312,7 +358,12 @@ return function(Window, Shared)
             if pile then
                 local char = Shared.localPlayer.Character
                 if char then
-                    collectPile(pile, char)
+                    local ok = collectPile(pile, char)
+                    if ok then
+                        Shared.createNotification("Manual collect succeeded", Color3.new(0,1,0))
+                    else
+                        Shared.createNotification("Manual collect failed", Color3.new(1,0.6,0))
+                    end
                     safeTeleportToPlatform(char)
                 end
             else
