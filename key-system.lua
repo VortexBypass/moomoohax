@@ -1,5 +1,5 @@
--- MooVerify Key System
--- Complete implementation with proper error handling
+-- MooVerify Key System (Client-Side Only)
+-- Fixed version without DataStore for client-side use
 
 local KeySystem = {}
 KeySystem.__index = KeySystem
@@ -12,8 +12,10 @@ function KeySystem.new(shared)
     self.Shared = shared or {}
     self.LocalPlayer = shared and shared.localPlayer or game:GetService("Players").LocalPlayer
     self.APIEnabled = true
-    self.DataStoreService = game:GetService("DataStoreService")
-    self.VerifiedKeysStore = self.DataStoreService:GetDataStore("MooVerifyKeys")
+    
+    -- Client-side storage (lasts for current session only)
+    self.VerifiedKey = nil
+    self.VerificationTime = nil
     
     print("🔧 MooVerify KeySystem initialized for player:", self.LocalPlayer.Name)
     return self
@@ -44,58 +46,43 @@ function KeySystem:ValidateMOOKeyFormat(key)
 end
 
 function KeySystem:LoadVerifiedKey()
-    local success, result = pcall(function()
-        return self.VerifiedKeysStore:GetAsync(self.LocalPlayer.UserId)
-    end)
-    
-    if success and result then
-        local keyAge = tick() - result.verifiedAt
-        print("📦 Found stored key, age:", math.floor(keyAge), "seconds")
+    -- Client-side storage - only lasts for current session
+    if self.VerifiedKey then
+        local keyAge = tick() - (self.VerificationTime or 0)
+        print("📦 Found session key, age:", math.floor(keyAge), "seconds")
         
         if keyAge < 21600 then -- 6 hours
-            print("✅ Stored key is valid")
-            return result.key, result.verifiedAt
+            print("✅ Session key is valid")
+            return self.VerifiedKey, self.VerificationTime
         else
-            print("❌ Stored key expired")
+            print("❌ Session key expired")
             self:RemoveVerifiedKey()
             return nil
         end
-    elseif not success then
-        print("⚠️ Could not load verified key:", result)
     end
-    
     return nil
 end
 
 function KeySystem:SaveVerifiedKey(key)
-    local success, result = pcall(function()
-        local data = {
-            key = key,
-            verifiedAt = tick(),
-            username = self.LocalPlayer and self.LocalPlayer.Name or "unknown"
-        }
-        self.VerifiedKeysStore:SetAsync(self.LocalPlayer.UserId, data)
-        return true
-    end)
-    
-    print("💾 Save verified key result:", success)
-    return success
+    -- Client-side storage
+    self.VerifiedKey = key
+    self.VerificationTime = tick()
+    print("💾 Saved key to session storage")
+    return true
 end
 
 function KeySystem:RemoveVerifiedKey()
-    local success, result = pcall(function()
-        self.VerifiedKeysStore:RemoveAsync(self.LocalPlayer.UserId)
-        return true
-    end)
-    
-    print("🗑️ Remove verified key result:", success)
-    return success
+    -- Client-side storage
+    self.VerifiedKey = nil
+    self.VerificationTime = nil
+    print("🗑️ Removed key from session storage")
+    return true
 end
 
 function KeySystem:IsKeyVerified(key)
-    local storedKey, verifiedAt = self:LoadVerifiedKey()
+    local storedKey = self.VerifiedKey
     if storedKey and storedKey == key then
-        print("🔑 Key is already verified")
+        print("🔑 Key is already verified in this session")
         return true
     end
     return false
@@ -162,9 +149,9 @@ function KeySystem:ValidateKeyWithFlask(key)
     
     if type(result) == "table" and result.valid then
         print("🎉 Key validation successful!")
-        local saved = pcall(function() return self:SaveVerifiedKey(key) end)
+        local saved = self:SaveVerifiedKey(key)
         if not saved then
-            warn("⚠️ Could not save verified key locally.")
+            warn("⚠️ Could not save verified key in session.")
         end
         
         return true, result.message or "Key validated"
@@ -363,7 +350,7 @@ function KeySystem:CreateVerificationGUI()
     local storedKey = self:LoadVerifiedKey()
     if storedKey then
         keyInput.Text = storedKey
-        statusLabel.Text = "🔑 Found stored key! Click verify to use it."
+        statusLabel.Text = "🔑 Found session key! Click verify to use it."
         statusLabel.TextColor3 = Color3.fromRGB(56, 189, 248)
     end
     
@@ -376,6 +363,8 @@ function KeySystem:CreateVerificationGUI()
             self.Shared.setclipboard(fullURL)
         else
             print("📋 Verification Link: " .. fullURL)
+            -- Fallback: show the URL in a message
+            statusLabel.Text = "Link: " .. fullURL .. " (see console)"
         end
         
         statusLabel.Text = "🔗 Link copied to clipboard! Visit the website to generate your key."
@@ -505,10 +494,13 @@ function KeySystem:LoadMainScript()
         self:CreateVerificationGUI()
         local newGui = self.LocalPlayer.PlayerGui:FindFirstChild("MooVerifyKeySystem")
         if newGui then
-            local statusLabel = newGui:FindFirstChild("StatusLabel") or newGui:WaitForChild("MainFrame"):WaitForChild("StatusLabel")
-            if statusLabel then
-                statusLabel.Text = "❌ Failed to load script: " .. tostring(err)
-                statusLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
+            local mainFrame = newGui:FindFirstChild("MainFrame")
+            if mainFrame then
+                local statusLabel = mainFrame:FindFirstChild("StatusLabel")
+                if statusLabel then
+                    statusLabel.Text = "❌ Failed to load script: " .. tostring(err)
+                    statusLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
+                end
             end
         end
     end
@@ -528,11 +520,11 @@ function KeySystem:Initialize()
     
     local storedKey = self:LoadVerifiedKey()
     if storedKey then
-        print("🔑 Using stored key, loading main script...")
+        print("🔑 Using session key, loading main script...")
         self:LoadMainScript()
         return true
     else
-        print("🆕 No stored key found, creating verification GUI...")
+        print("🆕 No session key found, creating verification GUI...")
         self:CreateVerificationGUI()
         return false
     end
@@ -565,7 +557,10 @@ local success, err = pcall(function()
     -- Create and initialize key system
     local keySystem = KeySystem.new({
         localPlayer = localPlayer,
-        setclipboard = setclipboard,
+        setclipboard = setclipboard or function(text)
+            -- Fallback if setclipboard doesn't exist
+            print("📋 Clipboard not available, text:", text)
+        end,
         createNotification = function(msg, color)
             -- Simple notification system
             print("📢 " .. msg)
@@ -581,33 +576,6 @@ end)
 
 if not success then
     warn("❌ MooVerify KeySystem failed to start: " .. tostring(err))
-    
-    -- Try to show basic error GUI
-    pcall(function()
-        local Players = game:GetService("Players")
-        local localPlayer = Players.LocalPlayer
-        if localPlayer and localPlayer:FindFirstChild("PlayerGui") then
-            local errorGui = Instance.new("ScreenGui")
-            errorGui.Name = "MooVerifyError"
-            errorGui.Parent = localPlayer.PlayerGui
-            
-            local errorFrame = Instance.new("Frame")
-            errorFrame.Size = UDim2.new(0, 400, 0, 200)
-            errorFrame.Position = UDim2.new(0.5, -200, 0.5, -100)
-            errorFrame.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
-            errorFrame.BorderSizePixel = 0
-            errorFrame.Parent = errorGui
-            
-            local errorLabel = Instance.new("TextLabel")
-            errorLabel.Size = UDim2.new(1, 0, 1, 0)
-            errorLabel.BackgroundTransparency = 1
-            errorLabel.Text = "MooVerify Error:\n" .. tostring(err)
-            errorLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
-            errorLabel.TextSize = 14
-            errorLabel.TextWrapped = true
-            errorLabel.Parent = errorFrame
-        end
-    end)
 end
 
 return KeySystem
