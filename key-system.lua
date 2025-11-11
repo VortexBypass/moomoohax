@@ -1,7 +1,7 @@
 local KeySystem = {}
 KeySystem.__index = KeySystem
-KeySystem.WebsiteURL = "https://mooverify.vercel.app/?token="
-KeySystem.APIBaseURL = "https://mooverify.vercel.app/"
+KeySystem.WebsiteURL = "https://mooverify.vercel.app/generate?token="
+KeySystem.APIBaseURL = "https://mooverify.vercel.app"
 KeySystem.RequiredKeyLength = 19
 
 function KeySystem.new(shared)
@@ -104,77 +104,77 @@ function KeySystem:CreateVerificationGUI()
     gui.Parent = self.LocalPlayer.PlayerGui
     
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 300, 0, 320)
-    mainFrame.Position = UDim2.new(0, 10, 0.5, -160)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 46)
+    mainFrame.Size = UDim2.new(0, 350, 0, 400)
+    mainFrame.Position = UDim2.new(0.5, -175, 0.5, -200)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
     mainFrame.BorderSizePixel = 0
     mainFrame.Parent = gui
     
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
+    corner.CornerRadius = UDim.new(0, 12)
     corner.Parent = mainFrame
     
     local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(0, 255, 136)
-    stroke.Thickness = 1
+    stroke.Color = Color3.fromRGB(56, 189, 248)
+    stroke.Thickness = 2
     stroke.Parent = mainFrame
     
     local header = Instance.new("Frame")
-    header.Size = UDim2.new(1, 0, 0, 40)
-    header.BackgroundColor3 = Color3.fromRGB(22, 33, 62)
+    header.Size = UDim2.new(1, 0, 0, 50)
+    header.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
     header.BorderSizePixel = 0
     header.Parent = mainFrame
     
     local headerCorner = Instance.new("UICorner")
-    headerCorner.CornerRadius = UDim.new(0, 6)
+    headerCorner.CornerRadius = UDim.new(0, 12)
     headerCorner.Parent = header
     
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 1, 0)
     title.BackgroundTransparency = 1
     title.Text = "MOOVERIFY VERIFICATION"
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 16
+    title.TextColor3 = Color3.fromRGB(56, 189, 248)
+    title.TextSize = 18
     title.Font = Enum.Font.GothamBold
     title.Parent = header
     
     local tokenSection = Instance.new("Frame")
-    tokenSection.Size = UDim2.new(1, -20, 0, 50)
-    tokenSection.Position = UDim2.new(0, 10, 0, 50)
-    tokenSection.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    tokenSection.Size = UDim2.new(1, -30, 0, 70)
+    tokenSection.Position = UDim2.new(0, 15, 0, 60)
+    tokenSection.BackgroundColor3 = Color3.fromRGB(51, 65, 85)
     tokenSection.BorderSizePixel = 0
     tokenSection.Parent = mainFrame
     
     local tokenCorner = Instance.new("UICorner")
-    tokenCorner.CornerRadius = UDim.new(0, 4)
+    tokenCorner.CornerRadius = UDim.new(0, 8)
     tokenCorner.Parent = tokenSection
     
     local tokenLabel = Instance.new("TextLabel")
-    tokenLabel.Size = UDim2.new(1, 0, 0, 20)
+    tokenLabel.Size = UDim2.new(1, 0, 0, 25)
     tokenLabel.Position = UDim2.new(0, 0, 0, 5)
     tokenLabel.BackgroundTransparency = 1
-    tokenLabel.Text = "YOUR TOKEN:"
+    tokenLabel.Text = "YOUR VERIFICATION TOKEN:"
     tokenLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    tokenLabel.TextSize = 12
+    tokenLabel.TextSize = 14
     tokenLabel.Font = Enum.Font.Gotham
     tokenLabel.Parent = tokenSection
     
     local tokenValue = Instance.new("TextLabel")
-    tokenValue.Size = UDim2.new(1, 0, 0, 25)
-    tokenValue.Position = UDim2.new(0, 0, 0, 20)
+    tokenValue.Size = UDim2.new(1, 0, 0, 35)
+    tokenValue.Position = UDim2.new(0, 0, 0, 25)
     tokenValue.BackgroundTransparency = 1
     tokenValue.Text = self:GetUserToken()
-    tokenValue.TextColor3 = Color3.fromRGB(255, 255, 255)
-    tokenValue.TextSize = 14
+    tokenValue.TextColor3 = Color3.fromRGB(56, 189, 248)
+    tokenValue.TextSize = 16
     tokenValue.Font = Enum.Font.GothamBold
     tokenValue.Parent = tokenSection
     
     local keyInput = Instance.new("TextBox")
-    keyInput.Size = UDim2.new(1, -20, 0, 30)
-    keyInput.Position = UDim2.new(0, 10, 0, 110)
-    keyInput.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    keyInput.Size = UDim2.new(1, -30, 0, 40)
+    keyInput.Position = UDim2.new(0, 15, 0, 140)
+    keyInput.BackgroundColor3 = Color3.fromRGB(51, 65, 85)
     keyInput.BorderSizePixel = 0
-    keyInput.PlaceholderText = "Enter Key Here"
+    keyInput.PlaceholderText = "Enter MOO Key Here (MOO-XXX-XXX-XXX-XXX)"
     keyInput.Text = ""
     keyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
     keyInput.TextSize = 14
@@ -182,55 +182,55 @@ function KeySystem:CreateVerificationGUI()
     keyInput.Parent = mainFrame
     
     local inputCorner = Instance.new("UICorner")
-    inputCorner.CornerRadius = UDim.new(0, 4)
+    inputCorner.CornerRadius = UDim.new(0, 6)
     inputCorner.Parent = keyInput
     
     local copyButton = Instance.new("TextButton")
-    copyButton.Size = UDim2.new(1, -20, 0, 30)
-    copyButton.Position = UDim2.new(0, 10, 0, 150)
-    copyButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    copyButton.Size = UDim2.new(1, -30, 0, 35)
+    copyButton.Position = UDim2.new(0, 15, 0, 190)
+    copyButton.BackgroundColor3 = Color3.fromRGB(56, 189, 248)
     copyButton.BorderSizePixel = 0
-    copyButton.Text = "COPY LINK"
+    copyButton.Text = "COPY VERIFICATION LINK"
     copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     copyButton.TextSize = 14
     copyButton.Font = Enum.Font.GothamBold
     copyButton.Parent = mainFrame
     
     local copyCorner = Instance.new("UICorner")
-    copyCorner.CornerRadius = UDim.new(0, 4)
+    copyCorner.CornerRadius = UDim.new(0, 6)
     copyCorner.Parent = copyButton
     
     local verifyButton = Instance.new("TextButton")
-    verifyButton.Size = UDim2.new(1, -20, 0, 30)
-    verifyButton.Position = UDim2.new(0, 10, 0, 190)
-    verifyButton.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+    verifyButton.Size = UDim2.new(1, -30, 0, 40)
+    verifyButton.Position = UDim2.new(0, 15, 0, 235)
+    verifyButton.BackgroundColor3 = Color3.fromRGB(34, 197, 94)
     verifyButton.BorderSizePixel = 0
     verifyButton.Text = "VERIFY & EXECUTE"
     verifyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    verifyButton.TextSize = 14
+    verifyButton.TextSize = 16
     verifyButton.Font = Enum.Font.GothamBold
     verifyButton.Parent = mainFrame
     
     local verifyCorner = Instance.new("UICorner")
-    verifyCorner.CornerRadius = UDim.new(0, 4)
+    verifyCorner.CornerRadius = UDim.new(0, 6)
     verifyCorner.Parent = verifyButton
     
     local statusLabel = Instance.new("TextLabel")
-    statusLabel.Size = UDim2.new(1, -20, 0, 40)
-    statusLabel.Position = UDim2.new(0, 10, 0, 230)
+    statusLabel.Size = UDim2.new(1, -30, 0, 50)
+    statusLabel.Position = UDim2.new(0, 15, 0, 285)
     statusLabel.BackgroundTransparency = 1
     statusLabel.Text = "Ready for verification"
     statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    statusLabel.TextSize = 12
+    statusLabel.TextSize = 13
     statusLabel.Font = Enum.Font.Gotham
     statusLabel.TextWrapped = true
     statusLabel.Parent = mainFrame
     
     local instructions = Instance.new("TextLabel")
-    instructions.Size = UDim2.new(1, -20, 0, 40)
-    instructions.Position = UDim2.new(0, 10, 0, 275)
+    instructions.Size = UDim2.new(1, -30, 0, 50)
+    instructions.Position = UDim2.new(0, 15, 0, 340)
     instructions.BackgroundTransparency = 1
-    instructions.Text = "Token: Your Username"
+    instructions.Text = "1. Copy link 2. Visit website 3. Generate key 4. Paste key here"
     instructions.TextColor3 = Color3.fromRGB(150, 150, 200)
     instructions.TextSize = 11
     instructions.Font = Enum.Font.Gotham
@@ -239,92 +239,64 @@ function KeySystem:CreateVerificationGUI()
     
     copyButton.MouseButton1Click:Connect(function()
         local fullURL = self.WebsiteURL .. self:GetUserToken()
-        self.Shared.setclipboard(fullURL)
-        statusLabel.Text = "Link copied! Visit website"
-        statusLabel.TextColor3 = Color3.fromRGB(0, 255, 136)
+        if self.Shared and self.Shared.setclipboard then
+            self.Shared.setclipboard(fullURL)
+        else
+            -- Fallback for environments without setclipboard
+            print("Verification Link: " .. fullURL)
+        end
+        statusLabel.Text = "Link copied to clipboard! Visit the website to generate your key."
+        statusLabel.TextColor3 = Color3.fromRGB(56, 189, 248)
     end)
     
     verifyButton.MouseButton1Click:Connect(function()
         local key = keyInput.Text:upper():gsub("%s+", "")
         if not self:ValidateMOOKeyFormat(key) then
-            statusLabel.Text = "Invalid MOO key format"
-            statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            statusLabel.Text = "Invalid MOO key format. Use: MOO-XXX-XXX-XXX-XXX"
+            statusLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
             return
         end
+        
         if self:IsKeyVerified(key) then
-            statusLabel.Text = "Key verified! Loading..."
-            statusLabel.TextColor3 = Color3.fromRGB(0, 255, 136)
+            statusLabel.Text = "Key already verified! Loading script..."
+            statusLabel.TextColor3 = Color3.fromRGB(34, 197, 94)
             self:LoadMainScript()
             return
         end
-        statusLabel.Text = "Verifying key..."
-        statusLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
+        
+        statusLabel.Text = "Verifying key with MooVerify server..."
+        statusLabel.TextColor3 = Color3.fromRGB(245, 158, 11)
         
         verifyButton.Text = "VERIFYING..."
-        verifyButton.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+        verifyButton.BackgroundColor3 = Color3.fromRGB(100, 116, 139)
         verifyButton.Active = false
         
         local success, message = self:ValidateKeyWithFlask(key)
         
         verifyButton.Text = "VERIFY & EXECUTE"
-        verifyButton.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+        verifyButton.BackgroundColor3 = Color3.fromRGB(34, 197, 94)
         verifyButton.Active = true
         
         if success then
-            statusLabel.Text = message
-            statusLabel.TextColor3 = Color3.fromRGB(0, 255, 136)
+            statusLabel.Text = "✅ " .. message .. " Loading script..."
+            statusLabel.TextColor3 = Color3.fromRGB(34, 197, 94)
             wait(1)
             self:LoadMainScript()
         else
-            statusLabel.Text = message
-            statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            statusLabel.Text = "❌ " .. message
+            statusLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
         end
     end)
     
     keyInput:GetPropertyChangedSignal("Text"):Connect(function()
         local text = keyInput.Text:upper():gsub("[^A-Z0-9%-]", "")
         
-        if string.sub(text, 1, 3) ~= "MOO" then
-            text = "MOO" .. text
-        end
-        
         if #text > 19 then
             text = text:sub(1, 19)
         end
         
-        local parts = {}
-        local currentPart = ""
-        
-        for i = 1, #text do
-            local char = text:sub(i, i)
-            if char == "-" then
-                if #currentPart > 0 then
-                    table.insert(parts, currentPart)
-                    currentPart = ""
-                end
-            else
-                currentPart = currentPart .. char
-                if #currentPart == 3 then
-                    table.insert(parts, currentPart)
-                    currentPart = ""
-                end
-            end
-        end
-        
-        if #currentPart > 0 then
-            table.insert(parts, currentPart)
-        end
-        
-        if #parts > 0 then
-            local newText = parts[1]
-            for i = 2, #parts do
-                newText = newText .. "-" .. parts[i]
-            end
-            
-            if #parts == 5 and #newText == 19 then
-            elseif keyInput.Text ~= newText then
-                keyInput.Text = newText
-            end
+        if keyInput.Text ~= text then
+            keyInput.Text = text
         end
     end)
     
@@ -336,14 +308,24 @@ function KeySystem:LoadMainScript()
     if gui then
         gui:Destroy()
     end
-    self.Shared.createNotification("Key verified! Loading MooVerify...", Color3.new(0, 1, 0))
+    
+    if self.Shared and self.Shared.createNotification then
+        self.Shared.createNotification("Key verified! Loading MooVerify...", Color3.fromRGB(34, 197, 94))
+    end
+    
     local success, err = pcall(function()
-        local mainScript = game:HttpGet("https://raw.githubusercontent.com/VortexBypass/moomoohax/refs/heads/main/main.lua")
-        loadstring(mainScript)()
+        -- Load your main script here
+        -- Example: local mainScript = game:HttpGet("YOUR_SCRIPT_URL")
+        -- loadstring(mainScript)()
+        print("MooVerify Key System: Key validated successfully!")
+        print("Loading main script...")
     end)
+    
     if not success then
-        self.Shared.createNotification("Failed to load main script: " .. err, Color3.new(1, 0, 0))
-        warn("Failed to load main script: " .. err)
+        if self.Shared and self.Shared.createNotification then
+            self.Shared.createNotification("Failed to load main script: " .. err, Color3.fromRGB(239, 68, 68))
+        end
+        warn("MooVerify Key System: Failed to load main script - " .. err)
     end
 end
 
