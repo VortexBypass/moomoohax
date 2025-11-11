@@ -1,20 +1,18 @@
 return function(Window, Shared)
     local tab = Window:CreateTab("AutoFarm", "truck")
-    
-    local isFarming = false
     local originalPosition = nil
     local originalTransparency = {}
     local invisibilityEnabled = false
+    local farmingThread = nil
 
     local function createAirPlatform()
         if Shared.airPlatform then
-            Shared.airPlatform:Destroy()
+            pcall(function() Shared.airPlatform:Destroy() end)
         end
-        
         Shared.airPlatform = Instance.new("Part")
         Shared.airPlatform.Name = "MooHaxAirPlatform"
         Shared.airPlatform.Size = Vector3.new(50, 5, 50)
-        Shared.airPlatform.Position = Vector3.new(0, 99, 0)
+        Shared.airPlatform.Position = Vector3.new(0, 200, 0)
         Shared.airPlatform.Anchored = true
         Shared.airPlatform.CanCollide = true
         Shared.airPlatform.Transparency = 0.5
@@ -27,19 +25,14 @@ return function(Window, Shared)
         if not character then return end
         invisibilityEnabled = true
         originalTransparency = {}
-        
-        -- Store and set transparency for all parts
         for _, part in pairs(character:GetDescendants()) do
             if part:IsA("BasePart") then
                 originalTransparency[part] = part.Transparency
                 part.Transparency = 1
             end
         end
-        
-        -- Also handle humanoid appearance
         local humanoid = character:FindFirstChildOfClass("Humanoid")
         if humanoid then
-            -- Hide name and health bar
             humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
         end
     end
@@ -47,44 +40,36 @@ return function(Window, Shared)
     local function restorePlayerVisibility(character)
         if not character then return end
         invisibilityEnabled = false
-        
-        -- Restore transparency for all parts
         for part, transparency in pairs(originalTransparency) do
             if part and part.Parent then
                 part.Transparency = transparency
             end
         end
         originalTransparency = {}
-        
-        -- Restore humanoid appearance
         local humanoid = character:FindFirstChildOfClass("Humanoid")
         if humanoid then
             humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
         end
     end
 
-    -- Function to reapply invisibility when character respawns
     local function onCharacterAdded(character)
         if invisibilityEnabled and Shared.MooSettings.AutoFarmEnabled then
-            wait(1) -- Wait for character to fully load
+            wait(1)
             makePlayerInvisible(character)
         end
     end
 
-    -- Connect character added event
     Shared.localPlayer.CharacterAdded:Connect(onCharacterAdded)
 
     local function safeTeleportToPlatform(character)
         if not character or not character:FindFirstChild("HumanoidRootPart") then return false end
-        
+        if not Shared.airPlatform then createAirPlatform() end
         local rootPart = character.HumanoidRootPart
-        
-        -- Enable noclip temporarily for safe teleport
         local savedNoclipState = Shared.MooSettings.NoclipEnabled
         if not savedNoclipState then
             Shared.MooSettings.NoclipEnabled = true
             if Shared.noclipConnection then
-                Shared.noclipConnection:Disconnect()
+                pcall(function() Shared.noclipConnection:Disconnect() end)
             end
             Shared.originalCollision = {}
             for _, part in pairs(character:GetDescendants()) do
@@ -103,21 +88,29 @@ return function(Window, Shared)
                 end
             end)
         end
-        
-        -- Teleport to platform
-        rootPart.CFrame = CFrame.new(0, 110, 0)
-        wait(0.1)
-        rootPart.CFrame = CFrame.new(0, 110, 0) -- Double teleport for safety
-        
-        -- Restore noclip state
+
+        local platPos = Shared.airPlatform.Position
+        local platHalfY = Shared.airPlatform.Size.Y / 2
+        local rootHalfY = (rootPart.Size and rootPart.Size.Y / 2) or 1
+        local placeY = platPos.Y + platHalfY + rootHalfY + 1
+        rootPart.CFrame = CFrame.new(platPos.X, placeY, platPos.Z)
+        wait(0.05)
+        rootPart.CFrame = CFrame.new(platPos.X, placeY, platPos.Z)
+        local timeout = 0
+        while timeout < 2 do
+            if rootPart.Position.Y >= platPos.Y + platHalfY - 0.5 then break end
+            wait(0.05)
+            timeout = timeout + 0.05
+        end
+
         if not savedNoclipState then
-            wait(0.5)
+            wait(0.2)
             if Shared.noclipConnection then
-                Shared.noclipConnection:Disconnect()
+                pcall(function() Shared.noclipConnection:Disconnect() end)
                 Shared.noclipConnection = nil
             end
             spawn(function()
-                wait(0.5)
+                wait(0.3)
                 if Shared.localPlayer.Character then
                     for part, originalState in pairs(Shared.originalCollision) do
                         if part and part.Parent then
@@ -128,7 +121,7 @@ return function(Window, Shared)
             end)
             Shared.MooSettings.NoclipEnabled = false
         end
-        
+
         return true
     end
 
@@ -136,7 +129,7 @@ return function(Window, Shared)
         local cashPiles = {}
         for _, obj in pairs(Shared.Workspace:GetDescendants()) do
             if obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("Model") then
-                local name = obj.Name:lower()
+                local name = tostring(obj.Name):lower()
                 if string.find(name, "cash") then
                     table.insert(cashPiles, obj)
                 end
@@ -152,8 +145,7 @@ return function(Window, Shared)
         if not rootPart then return nil end
         local cashPiles = findCashPiles()
         local closestPile = nil
-        local closestDistance = Shared.MooSettings.FarmRange
-        
+        local closestDistance = Shared.MooSettings.FarmRange or 100
         for _, pile in pairs(cashPiles) do
             local distance
             if pile:IsA("Model") then
@@ -166,144 +158,118 @@ return function(Window, Shared)
             else
                 distance = (rootPart.Position - pile.Position).Magnitude
             end
-            
             if distance < closestDistance then
                 closestDistance = distance
                 closestPile = pile
             end
         end
-        
         return closestPile
     end
 
-    local function startAutoFarm()
-        if Shared.farmingConnection then
-            Shared.farmingConnection:Disconnect()
-            Shared.farmingConnection = nil
+    local function collectPile(closestPile, character)
+        if not closestPile or not character or not character:FindFirstChild("HumanoidRootPart") then return false end
+        local root = character.HumanoidRootPart
+        local targetPos
+        if closestPile:IsA("Model") then
+            local primaryPart = closestPile.PrimaryPart or closestPile:FindFirstChildWhichIsA("BasePart")
+            if not primaryPart then return false end
+            targetPos = primaryPart.Position
+        else
+            targetPos = closestPile.Position
         end
-        
+        root.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
+        wait(0.15)
+        if closestPile:IsA("Model") then
+            for _, part in pairs(closestPile:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    pcall(function()
+                        firetouchinterest(root, part, 0)
+                        wait()
+                        firetouchinterest(root, part, 1)
+                    end)
+                end
+            end
+        else
+            pcall(function()
+                firetouchinterest(root, closestPile, 0)
+                wait()
+                firetouchinterest(root, closestPile, 1)
+            end)
+        end
+        wait(0.6)
+        return true
+    end
+
+    local function startAutoFarm()
+        if farmingThread then
+            farmingThread = nil
+        end
         local character = Shared.localPlayer.Character
         if character and character:FindFirstChild("HumanoidRootPart") then
             originalPosition = character.HumanoidRootPart.Position
-            makePlayerInvisible(character) -- Apply invisibility immediately
+            makePlayerInvisible(character)
         end
-        
         createAirPlatform()
-        
-        Shared.farmingConnection = Shared.RunService.Heartbeat:Connect(function()
-            if not Shared.MooSettings.AutoFarmEnabled then return end
-            
-            Shared.farmingConnection:Disconnect()
-            
-            spawn(function()
+        Shared.createNotification("AutoFarm started", Color3.new(0,1,0))
+        farmingThread = spawn(function()
+            while Shared.MooSettings.AutoFarmEnabled do
                 local character = Shared.localPlayer.Character
-                if not character or not character:FindFirstChild("HumanoidRootPart") then 
-                    if Shared.MooSettings.AutoFarmEnabled then
-                        Shared.farmingConnection = Shared.RunService.Heartbeat:Connect(function() end)
-                    end
-                    return 
+                if not character or not character:FindFirstChild("HumanoidRootPart") then
+                    wait(0.5)
+                    continue
                 end
-                
-                -- Ensure invisibility is applied
                 if not invisibilityEnabled then
                     makePlayerInvisible(character)
                 end
-                
                 safeTeleportToPlatform(character)
-                wait(5)
-                
-                if not Shared.MooSettings.AutoFarmEnabled then 
-                    if Shared.MooSettings.AutoFarmEnabled then
-                        Shared.farmingConnection = Shared.RunService.Heartbeat:Connect(function() end)
-                    end
-                    return 
-                end
-                
+                local waitBeforeCollect = Shared.MooSettings.CollectDelay or 5
+                wait(waitBeforeCollect)
+                if not Shared.MooSettings.AutoFarmEnabled then break end
                 local closestPile = getClosestCashPile()
                 if closestPile then
-                    local targetPos
-                    if closestPile:IsA("Model") then
-                        local primaryPart = closestPile.PrimaryPart or closestPile:FindFirstChildWhichIsA("BasePart")
-                        if primaryPart then
-                            targetPos = primaryPart.Position
-                        else
-                            if Shared.MooSettings.AutoFarmEnabled then
-                                Shared.farmingConnection = Shared.RunService.Heartbeat:Connect(function() end)
-                            end
-                            return
-                        end
+                    local ok = collectPile(closestPile, character)
+                    if ok then
+                        safeTeleportToPlatform(character)
+                        Shared.createNotification("AutoFarm: Collected cash", Color3.new(0,1,0))
                     else
-                        targetPos = closestPile.Position
+                        safeTeleportToPlatform(character)
+                        Shared.createNotification("AutoFarm: Collect failed", Color3.new(1,0.6,0))
                     end
-                    
-                    character.HumanoidRootPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
-                    
-                    wait(0.5)
-                    
-                    if closestPile:IsA("Model") then
-                        for _, part in pairs(closestPile:GetDescendants()) do
-                            if part:IsA("BasePart") then
-                                pcall(function() 
-                                    firetouchinterest(character.HumanoidRootPart, part, 0) 
-                                    wait()
-                                    firetouchinterest(character.HumanoidRootPart, part, 1) 
-                                end)
-                            end
-                        end
-                    else
-                        pcall(function() 
-                            firetouchinterest(character.HumanoidRootPart, closestPile, 0) 
-                            wait()
-                            firetouchinterest(character.HumanoidRootPart, closestPile, 1) 
-                        end)
-                    end
-                    
-                    wait(0.9)
-                    
-                    safeTeleportToPlatform(character)
-                    
-                    Shared.createNotification("AutoFarm: Collected cash", Color3.new(0,1,0))
                 else
                     Shared.createNotification("No cash piles found in range", Color3.new(1,1,0))
+                    safeTeleportToPlatform(character)
                 end
-                
-                wait(5)
-                
-                if Shared.MooSettings.AutoFarmEnabled then
-                    Shared.farmingConnection = Shared.RunService.Heartbeat:Connect(function() end)
+                local loopDelay = Shared.MooSettings.LoopDelay or 5
+                local elapsed = 0
+                while elapsed < loopDelay and Shared.MooSettings.AutoFarmEnabled do
+                    wait(0.25)
+                    elapsed = elapsed + 0.25
                 end
-            end)
+            end
+            if not Shared.MooSettings.AutoFarmEnabled then
+                if Shared.airPlatform then
+                    pcall(function() Shared.airPlatform:Destroy() end)
+                    Shared.airPlatform = nil
+                end
+                local char = Shared.localPlayer.Character
+                if char then
+                    restorePlayerVisibility(char)
+                end
+                if originalPosition then
+                    local c = Shared.localPlayer.Character
+                    if c and c:FindFirstChild("HumanoidRootPart") then
+                        c.HumanoidRootPart.CFrame = CFrame.new(originalPosition)
+                        Shared.createNotification("Returned to original position", Color3.new(0,1,1))
+                    end
+                    originalPosition = nil
+                end
+                Shared.createNotification("AutoFarm stopped", Color3.new(1,0,0))
+            end
         end)
-        
-        Shared.createNotification("AutoFarm started", Color3.new(0,1,0))
     end
 
     local function stopAutoFarm()
-        if Shared.farmingConnection then
-            Shared.farmingConnection:Disconnect()
-            Shared.farmingConnection = nil
-        end
-        
-        if Shared.airPlatform then
-            Shared.airPlatform:Destroy()
-            Shared.airPlatform = nil
-        end
-        
-        local character = Shared.localPlayer.Character
-        if character then
-            restorePlayerVisibility(character)
-        end
-        
-        if originalPosition then
-            local character = Shared.localPlayer.Character
-            if character and character:FindFirstChild("HumanoidRootPart") then
-                character.HumanoidRootPart.CFrame = CFrame.new(originalPosition)
-                Shared.createNotification("Returned to original position", Color3.new(0,1,1))
-            end
-            originalPosition = nil
-        end
-        
-        Shared.createNotification("AutoFarm stopped", Color3.new(1,0,0))
+        Shared.MooSettings.AutoFarmEnabled = false
     end
 
     tab:CreateSection("Auto Farm")
@@ -344,7 +310,11 @@ return function(Window, Shared)
         Callback = function()
             local pile = getClosestCashPile()
             if pile then
-                farmCashPile(pile)
+                local char = Shared.localPlayer.Character
+                if char then
+                    collectPile(pile, char)
+                    safeTeleportToPlatform(char)
+                end
             else
                 Shared.createNotification("No cash pile nearby", Color3.new(1,1,0))
             end
