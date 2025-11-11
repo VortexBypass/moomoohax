@@ -1,3 +1,6 @@
+-- MooVerify Key System
+-- Complete implementation with proper error handling
+
 local KeySystem = {}
 KeySystem.__index = KeySystem
 KeySystem.WebsiteURL = "https://carminestoat.onpella.app/generate?token="
@@ -6,11 +9,13 @@ KeySystem.RequiredKeyLength = 19
 
 function KeySystem.new(shared)
     local self = setmetatable({}, KeySystem)
-    self.Shared = shared
-    self.LocalPlayer = shared and shared.localPlayer
+    self.Shared = shared or {}
+    self.LocalPlayer = shared and shared.localPlayer or game:GetService("Players").LocalPlayer
     self.APIEnabled = true
     self.DataStoreService = game:GetService("DataStoreService")
     self.VerifiedKeysStore = self.DataStoreService:GetDataStore("MooVerifyKeys")
+    
+    print("🔧 MooVerify KeySystem initialized for player:", self.LocalPlayer.Name)
     return self
 end
 
@@ -19,25 +24,46 @@ function KeySystem:GetUserToken()
 end
 
 function KeySystem:ValidateMOOKeyFormat(key)
-    if type(key) ~= "string" then return false end
-    if #key ~= self.RequiredKeyLength then return false end
-    if not string.match(key:upper(), "^MOO%-") then return false end
+    if type(key) ~= "string" then 
+        print("❌ Key is not a string")
+        return false 
+    end
+    if #key ~= self.RequiredKeyLength then 
+        print("❌ Key length incorrect:", #key, "expected:", self.RequiredKeyLength)
+        return false 
+    end
+    if not string.match(key:upper(), "^MOO%-") then 
+        print("❌ Key doesn't start with MOO-")
+        return false 
+    end
+    
     local pattern = "^MOO%-[A-Z0-9][A-Z0-9][A-Z0-9]%-[A-Z0-9][A-Z0-9][A-Z0-9]%-[A-Z0-9][A-Z0-9][A-Z0-9]%-[A-Z0-9][A-Z0-9][A-Z0-9]$"
-    return string.match(key:upper(), pattern) ~= nil
+    local isValid = string.match(key:upper(), pattern) ~= nil
+    print("🔍 Key format validation:", isValid)
+    return isValid
 end
 
 function KeySystem:LoadVerifiedKey()
     local success, result = pcall(function()
         return self.VerifiedKeysStore:GetAsync(self.LocalPlayer.UserId)
     end)
+    
     if success and result then
-        if tick() - result.verifiedAt < 21600 then
+        local keyAge = tick() - result.verifiedAt
+        print("📦 Found stored key, age:", math.floor(keyAge), "seconds")
+        
+        if keyAge < 21600 then -- 6 hours
+            print("✅ Stored key is valid")
             return result.key, result.verifiedAt
         else
+            print("❌ Stored key expired")
             self:RemoveVerifiedKey()
             return nil
         end
+    elseif not success then
+        print("⚠️ Could not load verified key:", result)
     end
+    
     return nil
 end
 
@@ -51,6 +77,8 @@ function KeySystem:SaveVerifiedKey(key)
         self.VerifiedKeysStore:SetAsync(self.LocalPlayer.UserId, data)
         return true
     end)
+    
+    print("💾 Save verified key result:", success)
     return success
 end
 
@@ -59,12 +87,15 @@ function KeySystem:RemoveVerifiedKey()
         self.VerifiedKeysStore:RemoveAsync(self.LocalPlayer.UserId)
         return true
     end)
+    
+    print("🗑️ Remove verified key result:", success)
     return success
 end
 
 function KeySystem:IsKeyVerified(key)
     local storedKey, verifiedAt = self:LoadVerifiedKey()
     if storedKey and storedKey == key then
+        print("🔑 Key is already verified")
         return true
     end
     return false
@@ -72,15 +103,23 @@ end
 
 function KeySystem:ValidateKeyWithFlask(key)
     if not self.APIEnabled then
+        print("❌ API disabled")
         return false, "API disabled"
     end
+    
+    print("🌐 Validating key with server...")
     local HttpService = game:GetService("HttpService")
+    
     local success, result = pcall(function()
         local url = self.APIBaseURL .. "/validate_key"
         local payload = {
             key = key,
             username = self.LocalPlayer and self.LocalPlayer.Name or "unknown"
         }
+        
+        print("📤 Sending request to:", url)
+        print("📦 Payload:", HttpService:JSONEncode(payload))
+        
         local jsonPayload = HttpService:JSONEncode(payload)
         local response = HttpService:RequestAsync({
             Url = url,
@@ -91,14 +130,23 @@ function KeySystem:ValidateKeyWithFlask(key)
             },
             Body = jsonPayload
         })
+        
+        print("📥 Response status:", response.StatusCode)
+        print("📥 Response body:", response.Body)
+        
         if response.Success then
-            return HttpService:JSONDecode(response.Body)
+            local decoded = HttpService:JSONDecode(response.Body)
+            print("✅ Server response decoded successfully")
+            return decoded
         else
-            error("HTTP " .. tostring(response.StatusCode) .. ": " .. tostring(response.StatusMessage or response.StatusCode))
+            error("HTTP " .. tostring(response.StatusCode) .. ": " .. tostring(response.StatusMessage or "Unknown error"))
         end
     end)
+    
     if not success then
         local errorMsg = tostring(result)
+        print("❌ Validation error:", errorMsg)
+        
         if string.find(errorMsg, "403", 1, true) then
             return false, "Access denied (403)"
         elseif string.find(errorMsg, "404", 1, true) then
@@ -111,43 +159,41 @@ function KeySystem:ValidateKeyWithFlask(key)
             return false, "Connection failed: " .. errorMsg
         end
     end
+    
     if type(result) == "table" and result.valid then
-        print("Key validated successfully!")
+        print("🎉 Key validation successful!")
         local saved = pcall(function() return self:SaveVerifiedKey(key) end)
         if not saved then
-            warn("Warning: could not save verified key locally.")
+            warn("⚠️ Could not save verified key locally.")
         end
-        local mainUrl = "https://raw.githubusercontent.com/VortexBypass/moomoohax/refs/heads/main/main.lua"
-        local ok, loadErr = pcall(function()
-            local scriptText = game:HttpGet(mainUrl, true)
-            if not scriptText or #scriptText < 10 then
-                error("Fetched main script is empty or too short.")
-            end
-            local fn, compileErr = loadstring(scriptText)
-            if not fn then error("Loadstring compile error: " .. tostring(compileErr)) end
-            fn()
-        end)
-        if not ok then
-            warn("Failed to load main script after validation: " .. tostring(loadErr))
-            return false, "Validated but failed to load main script: " .. tostring(loadErr)
-        end
+        
         return true, result.message or "Key validated"
     else
-        warn("Key validation failed: " .. tostring((result and result.message) or "Unknown reason"))
-        return false, (result and result.message) or "Key validation failed"
+        local message = tostring((result and result.message) or "Unknown reason")
+        print("❌ Key validation failed:", message)
+        return false, message
     end
 end
 
 function KeySystem:CreateVerificationGUI()
+    print("🎨 Creating verification GUI...")
+    
+    -- Clear any existing GUI first
+    local existingGui = self.LocalPlayer.PlayerGui:FindFirstChild("MooVerifyKeySystem")
+    if existingGui then
+        existingGui:Destroy()
+    end
+    
     local gui = Instance.new("ScreenGui")
     gui.Name = "MooVerifyKeySystem"
+    gui.ResetOnSpawn = false
     gui.Parent = self.LocalPlayer.PlayerGui
     
     -- Main Container
     local mainFrame = Instance.new("Frame")
     mainFrame.Size = UDim2.new(0, 400, 0, 500)
     mainFrame.Position = UDim2.new(0.5, -200, 0.5, -250)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 41, 59)  -- Dark blue from site
+    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
     mainFrame.BorderSizePixel = 0
     mainFrame.Parent = gui
     
@@ -156,14 +202,14 @@ function KeySystem:CreateVerificationGUI()
     corner.Parent = mainFrame
     
     local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(56, 189, 248)  -- Sky blue accent
+    stroke.Color = Color3.fromRGB(56, 189, 248)
     stroke.Thickness = 2
     stroke.Parent = mainFrame
     
-    -- Header with logo style
+    -- Header
     local header = Instance.new("Frame")
     header.Size = UDim2.new(1, 0, 0, 80)
-    header.BackgroundColor3 = Color3.fromRGB(15, 23, 42)  -- Darker header
+    header.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
     header.BorderSizePixel = 0
     header.Parent = mainFrame
     
@@ -202,7 +248,7 @@ function KeySystem:CreateVerificationGUI()
     subtitle.Position = UDim2.new(0, 20, 0, 100)
     subtitle.BackgroundTransparency = 1
     subtitle.Text = "Security Verification Required"
-    subtitle.TextColor3 = Color3.fromRGB(148, 163, 184)  -- Gray text
+    subtitle.TextColor3 = Color3.fromRGB(148, 163, 184)
     subtitle.TextSize = 14
     subtitle.Font = Enum.Font.Gotham
     subtitle.Parent = mainFrame
@@ -211,7 +257,7 @@ function KeySystem:CreateVerificationGUI()
     local tokenSection = Instance.new("Frame")
     tokenSection.Size = UDim2.new(1, -40, 0, 80)
     tokenSection.Position = UDim2.new(0, 20, 0, 130)
-    tokenSection.BackgroundColor3 = Color3.fromRGB(51, 65, 85)  -- Card background
+    tokenSection.BackgroundColor3 = Color3.fromRGB(51, 65, 85)
     tokenSection.BorderSizePixel = 0
     tokenSection.Parent = mainFrame
     
@@ -224,7 +270,7 @@ function KeySystem:CreateVerificationGUI()
     tokenLabel.Position = UDim2.new(0, 0, 0, 10)
     tokenLabel.BackgroundTransparency = 1
     tokenLabel.Text = "YOUR VERIFICATION TOKEN"
-    tokenLabel.TextColor3 = Color3.fromRGB(203, 213, 225)  -- Light gray
+    tokenLabel.TextColor3 = Color3.fromRGB(203, 213, 225)
     tokenLabel.TextSize = 12
     tokenLabel.Font = Enum.Font.GothamMedium
     tokenLabel.Parent = tokenSection
@@ -234,7 +280,7 @@ function KeySystem:CreateVerificationGUI()
     tokenValue.Position = UDim2.new(0, 0, 0, 35)
     tokenValue.BackgroundTransparency = 1
     tokenValue.Text = self:GetUserToken()
-    tokenValue.TextColor3 = Color3.fromRGB(56, 189, 248)  -- Sky blue
+    tokenValue.TextColor3 = Color3.fromRGB(56, 189, 248)
     tokenValue.TextSize = 18
     tokenValue.Font = Enum.Font.GothamBold
     tokenValue.Parent = tokenSection
@@ -248,7 +294,7 @@ function KeySystem:CreateVerificationGUI()
     keyInput.PlaceholderText = "Enter MOO Key (MOO-XXX-XXX-XXX-XXX)"
     keyInput.PlaceholderColor3 = Color3.fromRGB(148, 163, 184)
     keyInput.Text = ""
-    keyInput.TextColor3 = Color3.fromRGB(226, 232, 240)  -- Light text
+    keyInput.TextColor3 = Color3.fromRGB(226, 232, 240)
     keyInput.TextSize = 14
     keyInput.Font = Enum.Font.Gotham
     keyInput.Parent = mainFrame
@@ -261,7 +307,7 @@ function KeySystem:CreateVerificationGUI()
     local copyButton = Instance.new("TextButton")
     copyButton.Size = UDim2.new(1, -40, 0, 45)
     copyButton.Position = UDim2.new(0, 20, 0, 295)
-    copyButton.BackgroundColor3 = Color3.fromRGB(56, 189, 248)  -- Sky blue
+    copyButton.BackgroundColor3 = Color3.fromRGB(56, 189, 248)
     copyButton.BorderSizePixel = 0
     copyButton.Text = "📋 COPY VERIFICATION LINK"
     copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -277,7 +323,7 @@ function KeySystem:CreateVerificationGUI()
     local verifyButton = Instance.new("TextButton")
     verifyButton.Size = UDim2.new(1, -40, 0, 50)
     verifyButton.Position = UDim2.new(0, 20, 0, 355)
-    verifyButton.BackgroundColor3 = Color3.fromRGB(34, 197, 94)  -- Green
+    verifyButton.BackgroundColor3 = Color3.fromRGB(34, 197, 94)
     verifyButton.BorderSizePixel = 0
     verifyButton.Text = "✅ VERIFY & EXECUTE"
     verifyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -295,7 +341,7 @@ function KeySystem:CreateVerificationGUI()
     statusLabel.Position = UDim2.new(0, 20, 0, 420)
     statusLabel.BackgroundTransparency = 1
     statusLabel.Text = "Ready for verification. Follow the steps below."
-    statusLabel.TextColor3 = Color3.fromRGB(203, 213, 225)  -- Light gray
+    statusLabel.TextColor3 = Color3.fromRGB(203, 213, 225)
     statusLabel.TextSize = 13
     statusLabel.Font = Enum.Font.Gotham
     statusLabel.TextWrapped = true
@@ -307,7 +353,7 @@ function KeySystem:CreateVerificationGUI()
     instructions.Position = UDim2.new(0, 20, 1, -50)
     instructions.BackgroundTransparency = 1
     instructions.Text = "1. Copy link • 2. Visit website • 3. Generate key • 4. Paste key here"
-    instructions.TextColor3 = Color3.fromRGB(148, 163, 184)  -- Gray
+    instructions.TextColor3 = Color3.fromRGB(148, 163, 184)
     instructions.TextSize = 11
     instructions.Font = Enum.Font.Gotham
     instructions.TextWrapped = true
@@ -324,11 +370,14 @@ function KeySystem:CreateVerificationGUI()
     -- Copy Button Functionality
     copyButton.MouseButton1Click:Connect(function()
         local fullURL = self.WebsiteURL .. self:GetUserToken()
+        print("📋 Copying URL:", fullURL)
+        
         if self.Shared and self.Shared.setclipboard then
             self.Shared.setclipboard(fullURL)
         else
-            print("Verification Link: " .. fullURL)
+            print("📋 Verification Link: " .. fullURL)
         end
+        
         statusLabel.Text = "🔗 Link copied to clipboard! Visit the website to generate your key."
         statusLabel.TextColor3 = Color3.fromRGB(56, 189, 248)
         
@@ -343,29 +392,31 @@ function KeySystem:CreateVerificationGUI()
     -- Verify Button Functionality
     verifyButton.MouseButton1Click:Connect(function()
         local key = keyInput.Text:upper():gsub("%s+", "")
+        print("🔑 Verifying key:", key)
+        
         if not self:ValidateMOOKeyFormat(key) then
             statusLabel.Text = "❌ Invalid MOO key format. Use: MOO-XXX-XXX-XXX-XXX"
-            statusLabel.TextColor3 = Color3.fromRGB(239, 68, 68)  -- Red
+            statusLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
             return
         end
         
         if self:IsKeyVerified(key) then
             statusLabel.Text = "✅ Key already verified! Loading script..."
-            statusLabel.TextColor3 = Color3.fromRGB(34, 197, 94)  -- Green
+            statusLabel.TextColor3 = Color3.fromRGB(34, 197, 94)
             self:LoadMainScript()
             return
         end
         
         statusLabel.Text = "⏳ Verifying key with MooVerify server..."
-        statusLabel.TextColor3 = Color3.fromRGB(245, 158, 11)  -- Orange
+        statusLabel.TextColor3 = Color3.fromRGB(245, 158, 11)
         verifyButton.Text = "🔄 VERIFYING..."
-        verifyButton.BackgroundColor3 = Color3.fromRGB(100, 116, 139)  -- Gray
+        verifyButton.BackgroundColor3 = Color3.fromRGB(100, 116, 139)
         verifyButton.Active = false
         
         local success, message = self:ValidateKeyWithFlask(key)
         
         verifyButton.Text = "✅ VERIFY & EXECUTE"
-        verifyButton.BackgroundColor3 = Color3.fromRGB(34, 197, 94)  -- Green
+        verifyButton.BackgroundColor3 = Color3.fromRGB(34, 197, 94)
         verifyButton.Active = true
         
         if success then
@@ -406,13 +457,18 @@ function KeySystem:CreateVerificationGUI()
         end
     end)
     
+    print("✅ Verification GUI created successfully")
     return gui
 end
 
 function KeySystem:LoadMainScript()
+    print("🚀 Loading main script...")
+    
+    -- Clear GUI
     local gui = self.LocalPlayer.PlayerGui:FindFirstChild("MooVerifyKeySystem")
     if gui then
         gui:Destroy()
+        print("🗑️ GUI destroyed")
     end
     
     if self.Shared and self.Shared.createNotification then
@@ -420,101 +476,138 @@ function KeySystem:LoadMainScript()
     end
     
     local success, err = pcall(function()
+        print("🌐 Fetching main script from GitHub...")
         local mainScript = game:HttpGet("https://raw.githubusercontent.com/VortexBypass/moomoohax/refs/heads/main/main.lua", true)
+        
+        if not mainScript or #mainScript < 10 then
+            error("Fetched main script is empty or too short.")
+        end
+        
+        print("📝 Loadstring main script...")
         local fn, loadErr = loadstring(mainScript)
-        if not fn then error("Loadstring error: " .. tostring(loadErr)) end
+        if not fn then 
+            error("Loadstring error: " .. tostring(loadErr)) 
+        end
+        
+        print("▶️ Executing main script...")
         fn()
+        print("✅ Main script executed successfully")
     end)
     
     if not success then
+        print("❌ Failed to load main script:", err)
+        
         if self.Shared and self.Shared.createNotification then
             self.Shared.createNotification("❌ Failed to load main script: " .. err, Color3.fromRGB(239, 68, 68))
         end
-        warn("MooVerify Key System: Failed to load main script - " .. err)
         
-        -- Error GUI with site styling
-        local errorGui = Instance.new("ScreenGui")
-        errorGui.Name = "MooVerifyError"
-        errorGui.Parent = self.LocalPlayer.PlayerGui
-        
-        local errorFrame = Instance.new("Frame")
-        errorFrame.Size = UDim2.new(0, 450, 0, 250)
-        errorFrame.Position = UDim2.new(0.5, -225, 0.5, -125)
-        errorFrame.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
-        errorFrame.BorderSizePixel = 0
-        errorFrame.Parent = errorGui
-        
-        local errorCorner = Instance.new("UICorner")
-        errorCorner.CornerRadius = UDim.new(0, 15)
-        errorCorner.Parent = errorFrame
-        
-        local errorStroke = Instance.new("UIStroke")
-        errorStroke.Color = Color3.fromRGB(239, 68, 68)
-        errorStroke.Thickness = 2
-        errorStroke.Parent = errorFrame
-        
-        local errorHeader = Instance.new("Frame")
-        errorHeader.Size = UDim2.new(1, 0, 0, 50)
-        errorHeader.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
-        errorHeader.BorderSizePixel = 0
-        errorHeader.Parent = errorFrame
-        
-        local errorHeaderCorner = Instance.new("UICorner")
-        errorHeaderCorner.CornerRadius = UDim.new(0, 15)
-        errorHeaderCorner.Parent = errorHeader
-        
-        local errorTitle = Instance.new("TextLabel")
-        errorTitle.Size = UDim2.new(1, 0, 1, 0)
-        errorTitle.BackgroundTransparency = 1
-        errorTitle.Text = "❌ LOADING ERROR"
-        errorTitle.TextColor3 = Color3.fromRGB(239, 68, 68)
-        errorTitle.TextSize = 18
-        errorTitle.Font = Enum.Font.GothamBold
-        errorTitle.Parent = errorHeader
-        
-        local errorMessage = Instance.new("TextLabel")
-        errorMessage.Size = UDim2.new(1, -20, 0, 150)
-        errorMessage.Position = UDim2.new(0, 10, 0, 60)
-        errorMessage.BackgroundTransparency = 1
-        errorMessage.Text = "Failed to load main script:\n\n" .. tostring(err)
-        errorMessage.TextColor3 = Color3.fromRGB(226, 232, 240)
-        errorMessage.TextSize = 14
-        errorMessage.Font = Enum.Font.Gotham
-        errorMessage.TextWrapped = true
-        errorMessage.TextXAlignment = Enum.TextXAlignment.Left
-        errorMessage.TextYAlignment = Enum.TextYAlignment.Top
-        errorMessage.Parent = errorFrame
-        
-        local closeButton = Instance.new("TextButton")
-        closeButton.Size = UDim2.new(0, 120, 0, 35)
-        closeButton.Position = UDim2.new(0.5, -60, 1, -45)
-        closeButton.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
-        closeButton.BorderSizePixel = 0
-        closeButton.Text = "CLOSE"
-        closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        closeButton.TextSize = 14
-        closeButton.Font = Enum.Font.GothamBold
-        closeButton.Parent = errorFrame
-        
-        local closeCorner = Instance.new("UICorner")
-        closeCorner.CornerRadius = UDim.new(0, 8)
-        closeCorner.Parent = closeButton
-        
-        closeButton.MouseButton1Click:Connect(function()
-            errorGui:Destroy()
-        end)
+        -- Recreate GUI with error message
+        self:CreateVerificationGUI()
+        local newGui = self.LocalPlayer.PlayerGui:FindFirstChild("MooVerifyKeySystem")
+        if newGui then
+            local statusLabel = newGui:FindFirstChild("StatusLabel") or newGui:WaitForChild("MainFrame"):WaitForChild("StatusLabel")
+            if statusLabel then
+                statusLabel.Text = "❌ Failed to load script: " .. tostring(err)
+                statusLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
+            end
+        end
     end
 end
 
 function KeySystem:Initialize()
+    print("🎯 Initializing MooVerify KeySystem...")
+    
+    -- Wait for player to be fully loaded
+    if not self.LocalPlayer then
+        warn("❌ LocalPlayer not found")
+        return false
+    end
+    
+    print("👤 Player:", self.LocalPlayer.Name)
+    print("🆔 UserId:", self.LocalPlayer.UserId)
+    
     local storedKey = self:LoadVerifiedKey()
     if storedKey then
+        print("🔑 Using stored key, loading main script...")
         self:LoadMainScript()
         return true
     else
+        print("🆕 No stored key found, creating verification GUI...")
         self:CreateVerificationGUI()
         return false
     end
+end
+
+-- Main execution
+print("🚀 Starting MooVerify KeySystem...")
+
+-- Wait for everything to load
+local success, err = pcall(function()
+    -- Wait for players service
+    local Players = game:GetService("Players")
+    
+    -- Wait for local player
+    local localPlayer = Players.LocalPlayer
+    while not localPlayer do
+        wait(0.1)
+        localPlayer = Players.LocalPlayer
+    end
+    
+    print("✅ LocalPlayer found:", localPlayer.Name)
+    
+    -- Wait for player GUI
+    while not localPlayer:FindFirstChild("PlayerGui") do
+        wait(0.1)
+    end
+    
+    print("✅ PlayerGui found")
+    
+    -- Create and initialize key system
+    local keySystem = KeySystem.new({
+        localPlayer = localPlayer,
+        setclipboard = setclipboard,
+        createNotification = function(msg, color)
+            -- Simple notification system
+            print("📢 " .. msg)
+        end
+    })
+    
+    -- Initialize after a short delay to ensure everything is ready
+    wait(1)
+    keySystem:Initialize()
+    
+    print("🎉 MooVerify KeySystem started successfully!")
+end)
+
+if not success then
+    warn("❌ MooVerify KeySystem failed to start: " .. tostring(err))
+    
+    -- Try to show basic error GUI
+    pcall(function()
+        local Players = game:GetService("Players")
+        local localPlayer = Players.LocalPlayer
+        if localPlayer and localPlayer:FindFirstChild("PlayerGui") then
+            local errorGui = Instance.new("ScreenGui")
+            errorGui.Name = "MooVerifyError"
+            errorGui.Parent = localPlayer.PlayerGui
+            
+            local errorFrame = Instance.new("Frame")
+            errorFrame.Size = UDim2.new(0, 400, 0, 200)
+            errorFrame.Position = UDim2.new(0.5, -200, 0.5, -100)
+            errorFrame.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
+            errorFrame.BorderSizePixel = 0
+            errorFrame.Parent = errorGui
+            
+            local errorLabel = Instance.new("TextLabel")
+            errorLabel.Size = UDim2.new(1, 0, 1, 0)
+            errorLabel.BackgroundTransparency = 1
+            errorLabel.Text = "MooVerify Error:\n" .. tostring(err)
+            errorLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
+            errorLabel.TextSize = 14
+            errorLabel.TextWrapped = true
+            errorLabel.Parent = errorFrame
+        end
+    end)
 end
 
 return KeySystem
