@@ -1,7 +1,7 @@
 local KeySystem = {}
 KeySystem.__index = KeySystem
-KeySystem.WebsiteURL = "https://carminestoat.onpella.app/?token="
-KeySystem.APIBaseURL = "https://carminestoat.onpella.app"
+KeySystem.WebsiteURL = "https://mooverify.vercel.app/?token="
+KeySystem.APIBaseURL = "https://mooverify.vercel.app/"
 KeySystem.RequiredKeyLength = 19
 
 function KeySystem.new(shared)
