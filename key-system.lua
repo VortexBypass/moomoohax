@@ -314,11 +314,9 @@ function KeySystem:LoadMainScript()
     end
     
     local success, err = pcall(function()
-        -- Load your main script here
-        -- Example: local mainScript = game:HttpGet("YOUR_SCRIPT_URL")
-        -- loadstring(mainScript)()
-        print("MooVerify Key System: Key validated successfully!")
-        print("Loading main script...")
+        -- Load the main script from GitHub
+        local mainScript = game:HttpGet("https://raw.githubusercontent.com/VortexBypass/moomoohax/refs/heads/main/main.lua")
+        loadstring(mainScript)()
     end)
     
     if not success then
@@ -326,6 +324,68 @@ function KeySystem:LoadMainScript()
             self.Shared.createNotification("Failed to load main script: " .. err, Color3.fromRGB(239, 68, 68))
         end
         warn("MooVerify Key System: Failed to load main script - " .. err)
+        
+        -- Fallback: Try to show error in a new GUI
+        local errorGui = Instance.new("ScreenGui")
+        errorGui.Name = "MooVerifyError"
+        errorGui.Parent = self.LocalPlayer.PlayerGui
+        
+        local errorFrame = Instance.new("Frame")
+        errorFrame.Size = UDim2.new(0, 400, 0, 200)
+        errorFrame.Position = UDim2.new(0.5, -200, 0.5, -100)
+        errorFrame.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
+        errorFrame.BorderSizePixel = 0
+        errorFrame.Parent = errorGui
+        
+        local errorCorner = Instance.new("UICorner")
+        errorCorner.CornerRadius = UDim.new(0, 12)
+        errorCorner.Parent = errorFrame
+        
+        local errorStroke = Instance.new("UIStroke")
+        errorStroke.Color = Color3.fromRGB(239, 68, 68)
+        errorStroke.Thickness = 2
+        errorStroke.Parent = errorFrame
+        
+        local errorTitle = Instance.new("TextLabel")
+        errorTitle.Size = UDim2.new(1, 0, 0, 40)
+        errorTitle.BackgroundTransparency = 1
+        errorTitle.Text = "LOADING ERROR"
+        errorTitle.TextColor3 = Color3.fromRGB(239, 68, 68)
+        errorTitle.TextSize = 18
+        errorTitle.Font = Enum.Font.GothamBold
+        errorTitle.Parent = errorFrame
+        
+        local errorMessage = Instance.new("TextLabel")
+        errorMessage.Size = UDim2.new(1, -20, 0, 120)
+        errorMessage.Position = UDim2.new(0, 10, 0, 50)
+        errorMessage.BackgroundTransparency = 1
+        errorMessage.Text = "Failed to load main script:\n" .. tostring(err)
+        errorMessage.TextColor3 = Color3.fromRGB(255, 255, 255)
+        errorMessage.TextSize = 14
+        errorMessage.Font = Enum.Font.Gotham
+        errorMessage.TextWrapped = true
+        errorMessage.TextXAlignment = Enum.TextXAlignment.Left
+        errorMessage.TextYAlignment = Enum.TextYAlignment.Top
+        errorMessage.Parent = errorFrame
+        
+        local closeButton = Instance.new("TextButton")
+        closeButton.Size = UDim2.new(0, 100, 0, 30)
+        closeButton.Position = UDim2.new(0.5, -50, 1, -40)
+        closeButton.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
+        closeButton.BorderSizePixel = 0
+        closeButton.Text = "CLOSE"
+        closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        closeButton.TextSize = 14
+        closeButton.Font = Enum.Font.GothamBold
+        closeButton.Parent = errorFrame
+        
+        local closeCorner = Instance.new("UICorner")
+        closeCorner.CornerRadius = UDim.new(0, 6)
+        closeCorner.Parent = closeButton
+        
+        closeButton.MouseButton1Click:Connect(function()
+            errorGui:Destroy()
+        end)
     end
 end
 
